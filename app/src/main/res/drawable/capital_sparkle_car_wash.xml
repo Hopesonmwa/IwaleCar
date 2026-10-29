@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="133dp"
+    android:viewportWidth="546"
+    android:viewportHeight="364">
+
+    <!-- Sky Background -->
+    <path
+        android:fillColor="#87CEEB"
+        android:pathData="M0,0h546v150h-546z"/>
+
+    <!-- Clouds -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M100,40a20,20 0 0,1 30,-10a25,25 0 0,1 40,10a20,20 0 0,1 20,20h-90zM350,30a15,15 0 0,1 25,-8a20,20 0 0,1 35,8a15,15 0 0,1 15,15h-75z"/>
+
+    <!-- Building in Background -->
+    <path
+        android:fillColor="#808080"
+        android:pathData="M40,60h380v120h-380z"/>
+
+    <!-- Building Doors & Windows -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M100,100h40v80h-40zM200,100h40v80h-40zM340,100h40v80h-40z"/>
+    <path
+        android:fillColor="#B8860B"
+        android:pathData="M110,110h20v25h-20zM210,110h20v25h-20zM350,110h20v25h-20z"/>
+
+    <!-- Concrete Bay Ground -->
+    <path
+        android:fillColor="#8B8589"
+        android:pathData="M0,170h546v194h-546z"/>
+    <path
+        android:fillColor="#6E6A6F"
+        android:pathData="M0,230h546v134h-546z"/>
+
+    <!-- Steel Roof Canopy Poles -->
+    <path
+        android:fillColor="#2F2F2F"
+        android:pathData="M70,40h10v200h-10zM410,40h10v200h-10z"/>
+
+    <!-- Steel Roof Canopy Framing -->
+    <path
+        android:fillColor="#4F4F4F"
+        android:pathData="M0,10h546v30h-546z"/>
+    <path
+        android:strokeColor="#1A1A1A"
+        android:strokeWidth="2"
+        android:pathData="M20,10L100,40M100,10L180,40M180,10L260,40M260,10L340,40M340,10L420,40M420,10L500,40"/>
+
+    <!-- Silver SUV Car Body -->
+    <!-- Car Base Body -->
+    <path
+        android:fillColor="#C0C0C0"
+        android:pathData="M50,220 C60,180 150,150 250,150 C320,150 350,170 380,200 L400,230 C420,250 410,290 390,300 L90,300 C60,300 50,260 50,220 Z"/>
+
+    <!-- Open Hatchback / Boot Lid -->
+    <path
+        android:fillColor="#A9A9A9"
+        android:strokeColor="#2F2F2F"
+        android:strokeWidth="3"
+        android:pathData="M370,190 L420,120 L400,115 L350,180 Z"/>
+
+    <!-- Car Windows & Tint -->
+    <path
+        android:fillColor="#2B3E50"
+        android:pathData="M130,175 L180,165 L250,165 L270,195 L130,195 Z"/>
+
+    <!-- Wheels (Front and Rear Black Rims) -->
+    <!-- Front Wheel -->
+    <path
+        android:fillColor="#1C1C1C"
+        android:pathData="M140,290m-35,0a35,35 0 1,0 70,0a35,35 0 1,0 -70,0"/>
+    <path
+        android:fillColor="#4A4A4A"
+        android:pathData="M140,290m-20,0a20,20 0 1,0 40,0a20,20 0 1,0 -40,0"/>
+
+    <!-- Rear Wheel -->
+    <path
+        android:fillColor="#1C1C1C"
+        android:pathData="M360,290m-35,0a35,35 0 1,0 70,0a35,35 0 1,0 -70,0"/>
+    <path
+        android:fillColor="#4A4A4A"
+        android:pathData="M360,290m-20,0a20,20 0 1,0 40,0a20,20 0 1,0 -40,0"/>
+
+    <!-- Person Washing Car (Right side) -->
+    <!-- Head with Red Cap -->
+    <path
+        android:fillColor="#DC2626"
+        android:pathData="M480,135a12,12 0 1,0 24,0a12,12 0 1,0 -24,0"/>
+    <!-- Body Shirt -->
+    <path
+        android:fillColor="#D97706"
+        android:pathData="M470,150h30v50h-30z"/>
+    <!-- Pants -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M472,200h26v60h-26z"/>
+
+    <!-- Hose Wand held up towards open boot -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="3"
+        android:pathData="M470,160 L420,120"/>
+
+    <!-- Yellow Water Hose coiling on floor -->
+    <path
+        android:strokeColor="#EAB308"
+        android:strokeWidth="5"
+        android:fillColor="#00000000"
+        android:pathData="M450,220 C420,320 200,360 110,320 C180,300 350,330 480,280"/>
+
+    <!-- Water Spray Foam -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M410,115a8,8 0 0,1 10,-5a12,12 0 0,1 15,5a8,8 0 0,1 5,10h-30z"/>
+
+</vector>
