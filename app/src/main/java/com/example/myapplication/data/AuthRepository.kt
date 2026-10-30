@@ -18,52 +18,93 @@ object AuthRepository {
      * Registers a new user with Firebase Authentication and creates a user profile in Firestore at `users/{uid}`.
      * Enforces security by sanitizing public registration roles to prevent self-assignment of Administrator roles.
      */
-    suspend fun signUp(user: UserAccount, password: String): Result<UserAccount> = withContext(Dispatchers.IO) {
-        // Security Requirement 8: Sanitize role so users cannot assign themselves Administrator/SuperAdmin
+    suspend fun signUp(
+        user: UserAccount,
+        password: String
+    ): Result<UserAccount> = withContext(Dispatchers.IO) {
+
+        // 1. Prevent users from assigning themselves admin privileges
         val allowedRole = when (user.role) {
             "Car Wash Owner" -> "Car Wash Owner"
-            else -> "User"
+            else -> "Customer"
         }
 
         val sanitizedUser = user.copy(role = allowedRole)
 
         try {
-            // Step 1: Create user in Firebase Auth
-            val authResult = auth.createUserWithEmailAndPassword(sanitizedUser.email.trim(), password).await()
-            val uid = authResult.user?.uid
+            // 2. Create the Firebase Authentication account
+            val authResult = auth.createUserWithEmailAndPassword(
+                sanitizedUser.email.trim(),
+                password
+            ).await()
 
-            if (uid != null) {
-                // Step 2: Create profile document in Cloud Firestore at `users/{uid}`
-                val profileMap = hashMapOf(
-                    "uid" to uid,
-                    "fullName" to sanitizedUser.fullName,
-                    "phoneNumber" to sanitizedUser.phoneNumber,
-                    "email" to sanitizedUser.email,
-                    "role" to sanitizedUser.role,
-                    "primaryLocation" to sanitizedUser.primaryLocation,
-                    "createdAt" to System.currentTimeMillis()
-                )
+            val firebaseUser = authResult.user
+                ?: throw Exception("Could not retrieve Firebase user.")
 
+            val uid = firebaseUser.uid
+
+            // 3. Prepare the user's Firestore profile
+            val profileMap = hashMapOf(
+                "uid" to uid,
+                "fullName" to sanitizedUser.fullName,
+                "phoneNumber" to sanitizedUser.phoneNumber,
+                "email" to sanitizedUser.email.trim(),
+                "role" to sanitizedUser.role,
+                "primaryLocation" to sanitizedUser.primaryLocation,
+                "createdAt" to System.currentTimeMillis()
+            )
+
+            // 4. Save the profile in Firestore
+            try {
+                db.collection("users")
+                    .document(uid)
+                    .set(profileMap)
+                    .await()
+
+            } catch (firestoreException: Exception) {
+
+                // 5. Attempt to remove the incomplete Auth account
                 try {
-                    db.collection("users").document(uid).set(profileMap).await()
-                } catch (e: Exception) {
-                    // Explicitly handle partial failure safely
-                    e.printStackTrace()
+                    firebaseUser.delete().await()
+                } catch (cleanupException: Exception) {
+                    cleanupException.printStackTrace()
                 }
+
+                return@withContext Result.failure(
+                    Exception(
+                        "Your account could not be fully created. " +
+                                "Please try again. " +
+                                (firestoreException.localizedMessage ?: "")
+                    )
+                )
             }
 
+            // 6. Update the existing local application session
             UserRepository.registerUser(sanitizedUser)
             UserRepository.setCurrentUser(sanitizedUser)
+
+            // 7. Report successful registration
             Result.success(sanitizedUser)
+
         } catch (e: FirebaseAuthUserCollisionException) {
-            Result.failure(Exception("An account with this email address already exists. Please sign in instead."))
+
+            Result.failure(
+                Exception("An account with this email already exists. Please sign in instead.")
+            )
+
         } catch (e: FirebaseAuthInvalidCredentialsException) {
-            Result.failure(Exception("Invalid email format or password requirement not met."))
+
+            Result.failure(
+                Exception("Invalid email format or password requirement not met.")
+            )
+
         } catch (e: Exception) {
-            // Fallback for offline/test environment when FirebaseApp is not initialized
-            UserRepository.registerUser(sanitizedUser)
-            UserRepository.setCurrentUser(sanitizedUser)
-            Result.success(sanitizedUser)
+
+            Result.failure(
+                Exception(
+                    e.localizedMessage ?: "Registration failed. Please try again."
+                )
+            )
         }
     }
 
@@ -201,4 +242,4 @@ object AuthRepository {
     fun getCurrentUser(): UserAccount {
         return UserRepository.getCurrentUser()
     }
-}
+   }
