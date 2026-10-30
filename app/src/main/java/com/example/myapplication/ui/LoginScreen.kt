@@ -70,8 +70,8 @@ fun LoginScreen(
     onCreateAccountClick: () -> Unit = {},
     onForgotPasswordClick: () -> Unit = {}
 ) {
-    var email by remember { mutableStateOf("carwash@gmail.com") }
-    var password by remember { mutableStateOf("1234") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }

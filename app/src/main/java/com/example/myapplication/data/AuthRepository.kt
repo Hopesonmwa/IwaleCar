@@ -23,13 +23,9 @@ object AuthRepository {
         password: String
     ): Result<UserAccount> = withContext(Dispatchers.IO) {
 
-        // 1. Prevent users from assigning themselves admin privileges
-        val allowedRole = when (user.role) {
-            "Car Wash Owner" -> "Car Wash Owner"
-            else -> "Customer"
-        }
 
-        val sanitizedUser = user.copy(role = allowedRole)
+        // Public registrations are always assigned the Customer role.
+        val sanitizedUser = user.copy(role = "Customer")
 
         try {
             // 2. Create the Firebase Authentication account
@@ -111,118 +107,152 @@ object AuthRepository {
     /**
      * Authenticates an existing user via Firebase Auth and retrieves their profile from Firestore `users/{uid}`.
      */
-    suspend fun login(email: String, password: String): Result<UserAccount> = withContext(Dispatchers.IO) {
+
+    suspend fun login(
+        email: String,
+        password: String
+    ): Result<UserAccount> = withContext(Dispatchers.IO) {
+
         val trimmedEmail = email.trim()
 
-        if (!trimmedEmail.contains("@")) {
-            return@withContext Result.failure(Exception("Invalid email format. Email address must contain '@'."))
+        if (trimmedEmail.isBlank() || !android.util.Patterns.EMAIL_ADDRESS
+                .matcher(trimmedEmail).matches()
+        ) {
+            return@withContext Result.failure(
+                Exception("Please enter a valid email address.")
+            )
+        }
+
+        if (password.isBlank()) {
+            return@withContext Result.failure(
+                Exception("Please enter your password.")
+            )
         }
 
         try {
-            // Step 1: Firebase Auth Sign In
-            val authResult = auth.signInWithEmailAndPassword(trimmedEmail, password).await()
-            val uid = authResult.user?.uid ?: throw Exception("User UID unavailable.")
+            // 1. Authenticate using Firebase Authentication.
+            val authResult = auth.signInWithEmailAndPassword(
+                trimmedEmail,
+                password
+            ).await()
 
-            // Step 2: Fetch Profile Document from Firestore `users/{uid}`
-            var loggedInUser: UserAccount? = null
-            try {
-                val doc = db.collection("users").document(uid).get().await()
-                if (doc.exists()) {
-                    loggedInUser = UserAccount(
-                        fullName = doc.getString("fullName") ?: doc.getString("email")?.substringBefore("@") ?: "User",
-                        phoneNumber = doc.getString("phoneNumber") ?: "",
-                        email = doc.getString("email") ?: trimmedEmail,
-                        password = password,
-                        role = doc.getString("role") ?: "User",
-                        primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe"
-                    )
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            val firebaseUser = authResult.user
+                ?: throw Exception("Could not retrieve your account.")
 
-            // Step 3: Fallback if profile document missing
-            if (loggedInUser == null) {
-                loggedInUser = UserRepository.findUser(trimmedEmail) ?: UserAccount(
-                    fullName = trimmedEmail.substringBefore("@"),
-                    phoneNumber = "",
-                    email = trimmedEmail,
-                    password = password,
-                    role = "User",
-                    primaryLocation = "Lilongwe"
+            val uid = firebaseUser.uid
+
+            // 2. Retrieve the user's profile from Firestore.
+            val doc = db.collection("users")
+                .document(uid)
+                .get()
+                .await()
+
+            if (!doc.exists()) {
+                throw Exception(
+                    "Your account profile could not be found. Please contact support."
                 )
             }
 
+            // 3. Build the application user model.
+            val role = doc.getString("role")
+                ?: throw Exception("Your account role is missing.")
+
+            val loggedInUser = UserAccount(
+                fullName = doc.getString("fullName")
+                    ?: "User",
+                phoneNumber = doc.getString("phoneNumber")
+                    ?: "",
+                email = doc.getString("email")
+                    ?: trimmedEmail,
+                password = "",
+                role = role,
+                primaryLocation = doc.getString("primaryLocation")
+                    ?: "Lilongwe"
+            )
+
+            // 4. Update the temporary local session cache.
             UserRepository.registerUser(loggedInUser)
             UserRepository.setCurrentUser(loggedInUser)
 
             Result.success(loggedInUser)
+
         } catch (e: FirebaseAuthInvalidCredentialsException) {
-            if (UserRepository.validateCredentials(trimmedEmail, password)) {
-                val localUser = UserRepository.findUser(trimmedEmail)
-                if (localUser != null) {
-                    UserRepository.setCurrentUser(localUser)
-                    return@withContext Result.success(localUser)
-                }
-            }
-            Result.failure(Exception("Incorrect email or password. Please check your credentials or create an account."))
+            Result.failure(
+                Exception("Incorrect email or password. Please try again.")
+            )
+
         } catch (e: FirebaseAuthInvalidUserException) {
-            if (UserRepository.validateCredentials(trimmedEmail, password)) {
-                val localUser = UserRepository.findUser(trimmedEmail)
-                if (localUser != null) {
-                    UserRepository.setCurrentUser(localUser)
-                    return@withContext Result.success(localUser)
-                }
-            }
-            Result.failure(Exception("Incorrect email or password. Please check your credentials or create an account."))
+            Result.failure(
+                Exception("No account was found for this email address.")
+            )
+
         } catch (e: Exception) {
-            if (UserRepository.validateCredentials(trimmedEmail, password)) {
-                val localUser = UserRepository.findUser(trimmedEmail)
-                if (localUser != null) {
-                    UserRepository.setCurrentUser(localUser)
-                    return@withContext Result.success(localUser)
-                }
-            }
-            Result.failure(Exception("Incorrect email or password. Please check your credentials or create an account."))
+            Result.failure(
+                Exception(
+                    e.localizedMessage
+                        ?: "Login failed. Please check your connection and try again."
+                )
+            )
         }
     }
 
     /**
      * Restores an existing Firebase Auth session when app restarts.
      */
-    suspend fun restoreSession(): Result<UserAccount?> = withContext(Dispatchers.IO) {
-        try {
-            val currentUser = auth.currentUser ?: return@withContext Result.success(null)
-            val uid = currentUser.uid
 
-            val doc = db.collection("users").document(uid).get().await()
-            val userAccount = if (doc.exists()) {
-                UserAccount(
-                    fullName = doc.getString("fullName") ?: currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "User",
-                    phoneNumber = doc.getString("phoneNumber") ?: "",
-                    email = doc.getString("email") ?: currentUser.email ?: "",
+    suspend fun restoreSession(): Result<UserAccount?> =
+        withContext(Dispatchers.IO) {
+
+            try {
+                val firebaseUser = auth.currentUser
+
+                if (firebaseUser == null) {
+                    UserRepository.setCurrentUser(null)
+                    return@withContext Result.success(null)
+                }
+
+                val doc = db.collection("users")
+                    .document(firebaseUser.uid)
+                    .get()
+                    .await()
+
+                if (!doc.exists()) {
+                    return@withContext Result.failure(
+                        Exception("Your account profile could not be found.")
+                    )
+                }
+
+                val role = doc.getString("role")
+                    ?: throw Exception("Your account role is missing.")
+
+                val userAccount = UserAccount(
+                    fullName = doc.getString("fullName")
+                        ?: "User",
+                    phoneNumber = doc.getString("phoneNumber")
+                        ?: "",
+                    email = doc.getString("email")
+                        ?: firebaseUser.email
+                        ?: "",
                     password = "",
-                    role = doc.getString("role") ?: "User",
-                    primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe"
+                    role = role,
+                    primaryLocation = doc.getString("primaryLocation")
+                        ?: "Lilongwe"
                 )
-            } else {
-                UserRepository.findUser(currentUser.email ?: "") ?: UserAccount(
-                    fullName = currentUser.email?.substringBefore("@") ?: "User",
-                    phoneNumber = "",
-                    email = currentUser.email ?: "",
-                    password = "",
-                    role = "User",
-                    primaryLocation = "Lilongwe"
+
+                UserRepository.registerUser(userAccount)
+                UserRepository.setCurrentUser(userAccount)
+
+                Result.success(userAccount)
+
+            } catch (e: Exception) {
+                Result.failure(
+                    Exception(
+                        e.localizedMessage
+                            ?: "Unable to restore your session."
+                    )
                 )
             }
-
-            UserRepository.registerUser(userAccount)
-            UserRepository.setCurrentUser(userAccount)
-            Result.success(userAccount)
-        } catch (e: Exception) {
-            Result.success(null)
         }
-    }
 
     /**
      * Signs out the current user from Firebase Authentication and clears active session.
@@ -235,6 +265,7 @@ object AuthRepository {
         }
         UserRepository.setCurrentUser(null)
     }
+
 
     /**
      * Synchronously returns currently authenticated user if session active.
