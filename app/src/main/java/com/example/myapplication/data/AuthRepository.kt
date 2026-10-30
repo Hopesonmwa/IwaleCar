@@ -273,4 +273,32 @@ object AuthRepository {
     fun getCurrentUser(): UserAccount {
         return UserRepository.getCurrentUser()
     }
+    suspend fun resetPassword(email: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+
+            val trimmedEmail = email.trim()
+
+            if (trimmedEmail.isBlank() ||
+                !android.util.Patterns.EMAIL_ADDRESS
+                    .matcher(trimmedEmail).matches()
+            ) {
+                return@withContext Result.failure(
+                    Exception("Please enter a valid email address.")
+                )
+            }
+
+            try {
+                auth.sendPasswordResetEmail(trimmedEmail).await()
+
+                Result.success(Unit)
+
+            } catch (e: Exception) {
+                Result.failure(
+                    Exception(
+                        e.localizedMessage
+                            ?: "Unable to send password reset email."
+                    )
+                )
+            }
+        }
    }
