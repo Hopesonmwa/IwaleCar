@@ -50,9 +50,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.myapplication.R
-import com.example.myapplication.ui.components.CarWashIcons
+import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun ForgotPasswordScreen(
@@ -61,6 +64,10 @@ fun ForgotPasswordScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var showDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val coroutineScope = rememberCoroutineScope()
 
     if (showDialog) {
         AlertDialog(
@@ -239,7 +246,7 @@ fun ForgotPasswordScreen(
                             ) {
                                 if (email.isEmpty()) {
                                     Text(
-                                        text = "e.g hopesonmwangonde@gmail.com",
+                                        text = "e.g example@gmail.com",
                                         fontSize = 14.sp,
                                         color = Color(0xFF94A3B8)
                                     )
@@ -247,7 +254,10 @@ fun ForgotPasswordScreen(
 
                                 BasicTextField(
                                     value = email,
-                                    onValueChange = { email = it },
+                                    onValueChange = {
+                                        email = it
+                                        errorMessage = null
+                                    },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                                     textStyle = TextStyle(
@@ -259,6 +269,17 @@ fun ForgotPasswordScreen(
                             }
                         }
                     }
+                }
+            }
+
+            item {
+                errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        color = Color.Red,
+                        fontSize = 13.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -294,7 +315,7 @@ fun ForgotPasswordScreen(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             Text(
-                                text = "Check your spam or junk folder if you don't receive an email within 2 minutes. Links expire in 15 minutes.",
+                                text = "Check your spam if you don't receive an email within 2 minutes. Links expire in 15 minutes.",
                                 fontSize = 12.sp,
                                 color = Color(0xFF475569),
                                 lineHeight = 16.sp
@@ -308,22 +329,45 @@ fun ForgotPasswordScreen(
             item {
                 Button(
                     onClick = {
-                        showDialog = true
+                        if (isLoading) return@Button
+                        errorMessage = null
+                        isLoading = true
+                        coroutineScope.launch {
+                            val result = AuthRepository.resetPassword(email)
+                            isLoading = false
+                            if (result.isSuccess) {
+                                showDialog = true
+                            } else {
+                                errorMessage = result.exceptionOrNull()?.message
+                                    ?: "Unable to send password reset email."
+                            }
+                        }
                     },
+                    enabled = !isLoading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF0B132B),
-                        contentColor = Color.White
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFFCBD5E1),
+                        disabledContentColor = Color(0xFF64748B)
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                 ) {
-                    Text(
-                        text = "Send Reset Link  →",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Send Reset Link  →",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
