@@ -19,7 +19,7 @@ class AuthRepositoryTest {
 
     /**
      * AUTH_FIREBASE_001 | Negative / Security
-     * Description: Verify that attempting to register as Administrator via AuthRepository sanitizes the role to User.
+     * Description: Verify that attempting to register as Administrator via AuthRepository sanitizes the role to Customer.
      * Prerequisites: Firebase Auth & Firestore configured; user attempts self-assigned Administrator role.
      */
     @Test
@@ -37,12 +37,12 @@ class AuthRepositoryTest {
         assertTrue("Sign up succeeds", result.isSuccess)
         val createdUser = result.getOrNull()
         assertNotNull("Created user exists", createdUser)
-        assertEquals("Role sanitized from Administrator to User", "User", createdUser?.role)
+        assertEquals("Role sanitized from Administrator to Customer", "Customer", createdUser?.role)
     }
 
     /**
-     * AUTH_FIREBASE_002 | Positive
-     * Description: Verify that registering as Car Wash Owner via AuthRepository preserves Car Wash Owner role.
+     * AUTH_FIREBASE_002 | Positive / Security
+     * Description: Verify that registering as Car Wash Owner via AuthRepository sets initial role to Customer while preserving requestedRole.
      * Prerequisites: Firebase Auth & Firestore configured.
      */
     @Test
@@ -59,7 +59,39 @@ class AuthRepositoryTest {
         val result = AuthRepository.signUp(ownerUser, "OwnerPass123!")
         assertTrue("Sign up succeeds for Car Wash Owner", result.isSuccess)
         val createdUser = result.getOrNull()
-        assertEquals("Car Wash Owner", createdUser?.role)
+        assertEquals("Customer", createdUser?.role)
+        assertEquals("Car Wash Owner", createdUser?.requestedRole)
+    }
+
+    /**
+     * AUTH_FIREBASE_007 | Positive / Navigation & Onboarding
+     * Description: Verify that registration choice (Customer vs Car Wash Owner) is preserved separately from sanitized role.
+     */
+    @Test
+    fun AUTH_FIREBASE_007_signup_preserves_owner_registration_choice() = runBlocking {
+        val customerAttempt = UserAccount(
+            fullName = "Standard Customer",
+            phoneNumber = "999888777",
+            email = "standard_cust@gmail.com",
+            password = "Pass123!#",
+            role = "Customer",
+            primaryLocation = "Lilongwe"
+        )
+        val custResult = AuthRepository.signUp(customerAttempt, "Pass123!#").getOrNull()
+        assertEquals("Customer", custResult?.role)
+        assertEquals("Customer", custResult?.requestedRole)
+
+        val ownerAttempt = UserAccount(
+            fullName = "Prospective Owner",
+            phoneNumber = "999777666",
+            email = "prosp_owner@gmail.com",
+            password = "Pass123!#",
+            role = "Car Wash Owner",
+            primaryLocation = "Zomba"
+        )
+        val ownerResult = AuthRepository.signUp(ownerAttempt, "Pass123!#").getOrNull()
+        assertEquals("Customer", ownerResult?.role)
+        assertEquals("Car Wash Owner", ownerResult?.requestedRole)
     }
 
     /**

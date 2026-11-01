@@ -6,7 +6,8 @@ data class UserAccount(
     val email: String,
     val password: String,
     val role: String,
-    val primaryLocation: String
+    val primaryLocation: String,
+    val requestedRole: String = role
 )
 
 val UserAccount.greetingName: String

@@ -16,21 +16,18 @@ object AuthRepository {
 
     /**
      * Registers a new user with Firebase Authentication and creates a user profile in Firestore at `users/{uid}`.
-     * Enforces security by sanitizing public registration roles to prevent self-assignment of Administrator roles.
+     * Enforces security by setting initial role to Customer for all new registrations.
      */
     suspend fun signUp(
         user: UserAccount,
         password: String
     ): Result<UserAccount> = withContext(Dispatchers.IO) {
 
-        // Security Requirement: Public registration allows Customer / Car Wash Owner, but sanitizes Administrator roles to User
-        val allowedRole = when (user.role) {
-            "Car Wash Owner" -> "Car Wash Owner"
-            "Customer" -> "Customer"
-            else -> "User"
-        }
-
-        val sanitizedUser = user.copy(role = allowedRole)
+        // Security Requirement: Public registration assigns Customer role to all new registrations while preserving requested registration selection
+        val sanitizedUser = user.copy(
+            role = "Customer",
+            requestedRole = user.requestedRole.ifBlank { user.role }
+        )
 
         try {
             // Create the Firebase Authentication account

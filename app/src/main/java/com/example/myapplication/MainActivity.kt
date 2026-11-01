@@ -32,6 +32,7 @@ import com.example.myapplication.ui.NotificationsScreen
 import com.example.myapplication.ui.OwnerBookingsScreen
 import com.example.myapplication.ui.OwnerDashboardScreen
 import com.example.myapplication.ui.OwnerFacilitiesScreen
+import com.example.myapplication.ui.OwnerOnboardingScreen
 import com.example.myapplication.ui.OwnerRevenueScreen
 import com.example.myapplication.ui.PaymentScreen
 import com.example.myapplication.ui.ProfileScreen
@@ -60,7 +61,8 @@ enum class Screen {
     ADMIN_DASHBOARD,
     ADMIN_FACILITIES,
     ADMIN_NOTIFICATIONS,
-    ADMIN_PROFILE
+    ADMIN_PROFILE,
+    OWNER_ONBOARDING
 }
 
 class MainActivity : ComponentActivity() {
@@ -150,7 +152,12 @@ fun MainAppLayout() {
             Screen.SIGNUP -> {
                 SignUpScreen(
                     onSignUpClick = { _ ->
-                        currentScreen = Screen.LOGIN
+                        val currentUser = UserRepository.getCurrentUser()
+                        if (currentUser.requestedRole == "Car Wash Owner") {
+                            currentScreen = Screen.OWNER_ONBOARDING
+                        } else {
+                            currentScreen = Screen.HOME
+                        }
                     },
                     onSignInClick = {
                         currentScreen = Screen.LOGIN
@@ -442,6 +449,17 @@ fun MainAppLayout() {
                     },
                     onAlertsClick = {
                         currentScreen = Screen.ADMIN_NOTIFICATIONS
+                    }
+                )
+            }
+            Screen.OWNER_ONBOARDING -> {
+                OwnerOnboardingScreen(
+                    onContinueToCustomerClick = {
+                        currentScreen = Screen.HOME
+                    },
+                    onSignOutClick = {
+                        AuthRepository.logout()
+                        currentScreen = Screen.LOGIN
                     }
                 )
             }
