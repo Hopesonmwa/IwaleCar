@@ -58,7 +58,14 @@ object UserRepository {
     }
 
     fun getCurrentUser(): UserAccount {
-        return currentUser ?: accounts.first { it.role == "Car Wash Owner" }
+        return currentUser ?: accounts.firstOrNull { it.role == "Customer" || it.role == "User" } ?: UserAccount(
+            fullName = "Default Customer",
+            phoneNumber = "992929988",
+            email = "user@gmail.com",
+            password = "1234",
+            role = "Customer",
+            primaryLocation = "Lilongwe"
+        )
     }
 
     fun registerUser(user: UserAccount) {

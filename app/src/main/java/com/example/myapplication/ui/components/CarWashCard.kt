@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.myapplication.R
 import com.example.myapplication.data.BadgeType
 import com.example.myapplication.data.CarWashFacility
+import com.example.myapplication.ui.theme.PrimaryBlue
 
 @Composable
 fun CarWashCard(
@@ -187,7 +188,7 @@ fun CarWashCard(
                             onClick = { onViewFacilityClick(facility) },
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0B132B),
+                                containerColor = PrimaryBlue,
                                 contentColor = Color.White
                             ),
                             modifier = Modifier.height(42.dp)

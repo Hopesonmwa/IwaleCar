@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Lock
@@ -62,13 +63,15 @@ import com.example.myapplication.R
 import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.UserAccount
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     onSignInClick: (UserAccount?) -> Unit = {},
     onCreateAccountClick: () -> Unit = {},
-    onForgotPasswordClick: () -> Unit = {}
+    onForgotPasswordClick: () -> Unit = {},
+    successMessage: String? = null
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -202,6 +205,35 @@ fun LoginScreen(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Success Banner Notification
+                        AnimatedVisibility(visible = successMessage != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                                border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = successMessage ?: "",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF166534)
+                                    )
+                                }
+                            }
+                        }
+
                         // Error Banner Notification
                         AnimatedVisibility(visible = errorMessage != null) {
                             Card(
@@ -257,21 +289,34 @@ fun LoginScreen(
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
-                                    BasicTextField(
-                                        value = email,
-                                        onValueChange = {
-                                            email = it
-                                            errorMessage = null
-                                        },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                        textStyle = TextStyle(
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Normal,
-                                            color = Color(0xFF0F172A)
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                    Box(
+                                        modifier = Modifier.weight(1f),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (email.isEmpty()) {
+                                            Text(
+                                                text = "example@gmail.com",
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF94A3B8)
+                                            )
+                                        }
+
+                                        BasicTextField(
+                                            value = email,
+                                            onValueChange = {
+                                                email = it
+                                                errorMessage = null
+                                            },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                            textStyle = TextStyle(
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                color = Color(0xFF0F172A)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -368,7 +413,7 @@ fun LoginScreen(
                             enabled = !isLoading,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0B132B),
+                                containerColor = PrimaryBlue,
                                 contentColor = Color.White,
                                 disabledContainerColor = Color(0xFFCBD5E1),
                                 disabledContentColor = Color(0xFF64748B)

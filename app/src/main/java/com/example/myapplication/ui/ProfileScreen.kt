@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.CheckCircle
@@ -31,10 +32,8 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Email
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.ManageAccounts
-import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Store
@@ -43,7 +42,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,17 +62,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.R
+import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.UserRepository
+import com.example.myapplication.data.ValidationUtils
 import com.example.myapplication.ui.components.BottomNavigationBar
 import com.example.myapplication.ui.components.CarWashIcons
 import com.example.myapplication.ui.components.NavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -79,23 +85,277 @@ fun ProfileScreen(
     onHistoryClick: () -> Unit = {},
     onBookingsClick: () -> Unit = {}
 ) {
-    val currentUser = UserRepository.getCurrentUser()
+    var currentUser by remember { mutableStateOf(UserRepository.getCurrentUser()) }
 
-    var bioText by remember {
-        mutableStateOf("Passionate car enthusiast and daily commuter. Keeping my car spotless with IWALE express wash bays!")
+    var bioText by remember(currentUser) {
+        mutableStateOf(
+            if (currentUser.bio.isNotBlank()) currentUser.bio
+            else "Passionate car enthusiast and daily commuter. Keeping my car spotless with IWALE express wash bays!"
+        )
     }
-    var selectedHub by remember { mutableStateOf(currentUser.primaryLocation) }
-    var addressText by remember { mutableStateOf("Plot 4/19, Presidential Highway, ${currentUser.primaryLocation}") }
-    var emailText by remember { mutableStateOf(currentUser.email) }
-    var phoneText by remember { mutableStateOf("+265 ${currentUser.phoneNumber}") }
+    var selectedHub by remember(currentUser) { mutableStateOf(currentUser.primaryLocation) }
+    var emailText by remember(currentUser) { mutableStateOf(currentUser.email) }
+    var phoneText by remember(currentUser) { mutableStateOf(currentUser.phoneNumber) }
+
+    var showEditBioDialog by remember { mutableStateOf(false) }
+    var tempBioInput by remember { mutableStateOf("") }
+    var isSavingBio by remember { mutableStateOf(false) }
+
+    var showEditPhoneDialog by remember { mutableStateOf(false) }
+    var tempPhoneInput by remember { mutableStateOf("") }
+    var phoneErrorMessage by remember { mutableStateOf<String?>(null) }
+    var isSavingPhone by remember { mutableStateOf(false) }
 
     var showSaveConfirmDialog by remember { mutableStateOf(false) }
     var isSaveSuccessBannerVisible by remember { mutableStateOf(false) }
+    var successBannerMessage by remember { mutableStateOf("Profile saved successfully!") }
+    var isSavingProfile by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    // Edit Bio Modal Dialog
+    if (showEditBioDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingBio) {
+                    showEditBioDialog = false
+                }
+            },
+            title = {
+                Text(
+                    text = "Edit Personal Bio",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Share a brief bio about yourself and your car wash preferences.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF0F5FA))
+                            .padding(12.dp)
+                    ) {
+                        BasicTextField(
+                            value = tempBioInput,
+                            onValueChange = { if (it.length <= 180) tempBioInput = it },
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = Color(0xFF0F172A),
+                                lineHeight = 18.sp
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "${tempBioInput.length}/180",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B),
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isSavingBio = true
+                        val updatedUser = currentUser.copy(bio = tempBioInput.trim())
+                        coroutineScope.launch {
+                            AuthRepository.updateUserProfile(updatedUser)
+                            currentUser = UserRepository.getCurrentUser()
+                            bioText = currentUser.bio
+                            isSavingBio = false
+                            showEditBioDialog = false
+                            successBannerMessage = "Personal bio updated successfully!"
+                            isSaveSuccessBannerVisible = true
+                        }
+                    },
+                    enabled = !isSavingBio,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryBlue,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isSavingBio) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(text = "Save", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showEditBioDialog = false },
+                    enabled = !isSavingBio
+                ) {
+                    Text(text = "Cancel", color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Edit Phone Number Modal Dialog
+    if (showEditPhoneDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingPhone) {
+                    showEditPhoneDialog = false
+                }
+            },
+            title = {
+                Text(
+                    text = "Edit Mobile Phone Number",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Enter your 9-digit Malawi phone number (+265).",
+                        fontSize = 13.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF0F5FA))
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = "+265",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF0F5FA))
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            BasicTextField(
+                                value = tempPhoneInput,
+                                onValueChange = { input ->
+                                    if (input.length <= 9 && input.all { it.isDigit() }) {
+                                        tempPhoneInput = input
+                                        phoneErrorMessage = null
+                                    }
+                                },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                textStyle = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+
+                    if (phoneErrorMessage != null) {
+                        Text(
+                            text = phoneErrorMessage!!,
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626),
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else if (tempPhoneInput.length == 9) {
+                        Text(
+                            text = "✓ Valid 9-digit Malawi phone number",
+                            fontSize = 12.sp,
+                            color = Color(0xFF16A34A),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = tempPhoneInput.trim()
+                        if (!ValidationUtils.isPhoneValid(trimmed)) {
+                            phoneErrorMessage = "Phone number must be exactly 9 digits (e.g. 992929988)"
+                            return@Button
+                        }
+
+                        isSavingPhone = true
+                        phoneErrorMessage = null
+                        val updatedUser = currentUser.copy(phoneNumber = trimmed)
+                        coroutineScope.launch {
+                            AuthRepository.updateUserProfile(updatedUser)
+                            currentUser = UserRepository.getCurrentUser()
+                            phoneText = currentUser.phoneNumber
+                            isSavingPhone = false
+                            showEditPhoneDialog = false
+                            successBannerMessage = "Mobile phone number updated successfully!"
+                            isSaveSuccessBannerVisible = true
+                        }
+                    },
+                    enabled = !isSavingPhone,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryBlue,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isSavingPhone) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(text = "Save", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showEditPhoneDialog = false },
+                    enabled = !isSavingPhone
+                ) {
+                    Text(text = "Cancel", color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     // Save Confirmation Modal
     if (showSaveConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showSaveConfirmDialog = false },
+            onDismissRequest = { if (!isSavingProfile) showSaveConfirmDialog = false },
             title = {
                 Text(
                     text = "Save Profile Changes?",
@@ -114,27 +374,45 @@ fun ProfileScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        showSaveConfirmDialog = false
+                        isSavingProfile = true
                         val updatedUser = currentUser.copy(
                             primaryLocation = selectedHub,
-                            phoneNumber = phoneText.removePrefix("+265 ").trim(),
-                            email = emailText.trim()
+                            phoneNumber = phoneText.removePrefix("+265 ").removePrefix("+265").trim(),
+                            email = emailText.trim(),
+                            bio = bioText.trim()
                         )
-                        UserRepository.registerUser(updatedUser)
-                        UserRepository.setCurrentUser(updatedUser)
-                        isSaveSuccessBannerVisible = true
+                        coroutineScope.launch {
+                            AuthRepository.updateUserProfile(updatedUser)
+                            currentUser = UserRepository.getCurrentUser()
+                            isSavingProfile = false
+                            showSaveConfirmDialog = false
+                            successBannerMessage = "Profile and location saved successfully!"
+                            isSaveSuccessBannerVisible = true
+                        }
                     },
+                    enabled = !isSavingProfile,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = PrimaryBlue,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(text = "Confirm & Save", fontWeight = FontWeight.Bold)
+                    if (isSavingProfile) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(text = "Confirm & Save", fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveConfirmDialog = false }) {
+                TextButton(
+                    onClick = { showSaveConfirmDialog = false },
+                    enabled = !isSavingProfile
+                ) {
                     Text(text = "Cancel", color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
                 }
             },
@@ -167,7 +445,7 @@ fun ProfileScreen(
                             text = "IWALE CAR",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0284C7),
+                            color = PrimaryBlue,
                             letterSpacing = 0.5.sp
                         )
                         Text(
@@ -238,7 +516,7 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Profile & primary location saved successfully!",
+                                text = successBannerMessage,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF14532D)
@@ -283,7 +561,7 @@ fun ProfileScreen(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0284C7))
+                                    .background(PrimaryBlue)
                                     .border(2.dp, Color.White, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -310,7 +588,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Default.Verified,
                                 contentDescription = "Verified",
-                                tint = Color(0xFF0284C7),
+                                tint = PrimaryBlue,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -346,7 +624,7 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.Email,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = PrimaryBlue,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -354,7 +632,7 @@ fun ProfileScreen(
                                     text = "Email Linked",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0284C7)
+                                    color = PrimaryBlue
                                 )
                             }
                         }
@@ -383,7 +661,7 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.Badge,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = PrimaryBlue,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -397,12 +675,15 @@ fun ProfileScreen(
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { }
+                                modifier = Modifier.clickable {
+                                    tempBioInput = currentUser.bio
+                                    showEditBioDialog = true
+                                }
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Edit,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = PrimaryBlue,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -410,12 +691,12 @@ fun ProfileScreen(
                                     text = "Edit Bio",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0284C7)
+                                    color = PrimaryBlue
                                 )
                             }
                         }
 
-                        // Bio Input Box
+                        // Bio Display Box
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -423,10 +704,9 @@ fun ProfileScreen(
                                 .background(Color(0xFFF0F5FA))
                                 .padding(14.dp)
                         ) {
-                            BasicTextField(
-                                value = bioText,
-                                onValueChange = { if (it.length <= 180) bioText = it },
-                                textStyle = TextStyle(
+                            Text(
+                                text = bioText,
+                                style = TextStyle(
                                     fontSize = 13.sp,
                                     color = Color(0xFF334155),
                                     lineHeight = 18.sp
@@ -434,18 +714,11 @@ fun ProfileScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
-
-                        Text(
-                            text = "${bioText.length}/180",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B),
-                            modifier = Modifier.align(Alignment.End)
-                        )
                     }
                 }
             }
 
-            // Primary Wash Hub & Location Selector (Requirement 2)
+            // Primary Wash Hub & Location Selector
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -466,7 +739,7 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.LocationOn,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = PrimaryBlue,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -493,7 +766,7 @@ fun ProfileScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF38BDF8)),
+                                        .background(PrimaryBlue),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -542,7 +815,7 @@ fun ProfileScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) Color(0xFF006699) else Color(0xFFF0F5FA))
+                                        .background(if (isSelected) PrimaryBlue else Color(0xFFF0F5FA))
                                         .clickable { selectedHub = hub }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center
@@ -576,7 +849,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Outlined.ManageAccounts,
                                 contentDescription = null,
-                                tint = Color(0xFF0284C7),
+                                tint = PrimaryBlue,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -612,7 +885,7 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Outlined.Email,
                                             contentDescription = null,
-                                            tint = Color(0xFF0284C7),
+                                            tint = PrimaryBlue,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -637,7 +910,7 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = "Verified",
-                                    tint = Color(0xFF0284C7),
+                                    tint = PrimaryBlue,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -667,7 +940,7 @@ fun ProfileScreen(
                                         Icon(
                                             imageVector = Icons.Outlined.AccountBalanceWallet,
                                             contentDescription = null,
-                                            tint = Color(0xFF0284C7),
+                                            tint = PrimaryBlue,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -681,7 +954,7 @@ fun ProfileScreen(
                                             color = Color(0xFF64748B)
                                         )
                                         Text(
-                                            text = phoneText,
+                                            text = "+265 $phoneText",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF0F172A)
@@ -692,8 +965,14 @@ fun ProfileScreen(
                                 Icon(
                                     imageVector = Icons.Outlined.Edit,
                                     contentDescription = "Edit Phone",
-                                    tint = Color(0xFF0284C7),
-                                    modifier = Modifier.size(18.dp)
+                                    tint = PrimaryBlue,
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clickable {
+                                            tempPhoneInput = currentUser.phoneNumber
+                                            phoneErrorMessage = null
+                                            showEditPhoneDialog = true
+                                        }
                                 )
                             }
                         }
@@ -707,7 +986,7 @@ fun ProfileScreen(
                     onClick = { showSaveConfirmDialog = true },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = PrimaryBlue,
                         contentColor = Color.White
                     ),
                     modifier = Modifier

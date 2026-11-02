@@ -2,23 +2,65 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User profiles collection
-    match /users/{userId} {
-      // Allow user to read their own profile or allow admins to read all profiles
-      allow read: if request.auth != null && (request.auth.uid == userId || resource.data.role == 'Administrator' || resource.data.role == 'SuperAdmin');
-
-      // Public registration: allow user to create their document on signup, preventing self-assigned admin roles
-      allow create: if request.auth != null && request.auth.uid == userId
-                    && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role in ['User', 'Car Wash Owner']);
-
-      // Profile updates: allow user to update details but forbid changing their own role to Administrator
-      allow update: if request.auth != null && request.auth.uid == userId
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    // Helper functions for user authentication and ownership
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Default rule for other collections (facilities, bookings, etc.)
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Secure administrator authorization using Firebase Auth Custom Claims
+    function isAdmin() {
+      return isAuthenticated() &&
+             (('role' in request.auth.token && request.auth.token.role in ['Administrator', 'SuperAdmin']) ||
+              ('admin' in request.auth.token && request.auth.token.admin == true));
+    }
+
+    // User profiles collection security rules
+    match /users/{userId} {
+
+      // Allow users to read their own profile, or admins with custom claims to read any profile
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Registration create rule:
+      // 1. Must be authenticated user creating their own document matching request.auth.uid
+      // 2. Document data 'uid' must match request.auth.uid
+      // 3. Document data 'role' MUST equal 'Customer' (prevents self-assignment of Owner/Admin roles)
+      // 4. Document data 'email' must match authenticated token email
+      // 5. Allowed keys must strictly match permitted profile fields using hasOnly()
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasOnly(['uid', 'fullName', 'firstName', 'lastName', 'phoneNumber', 'email', 'role', 'primaryLocation', 'bio', 'createdAt'])
+                    && request.resource.data.keys().hasAll(['uid', 'fullName', 'email', 'role', 'phoneNumber', 'primaryLocation'])
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.role == 'Customer'
+                    && (request.auth.token.email == null || request.resource.data.email == request.auth.token.email)
+                    && request.resource.data.fullName is string
+                    && request.resource.data.email is string
+                    && request.resource.data.phoneNumber is string
+                    && request.resource.data.primaryLocation is string
+                    && (!('firstName' in request.resource.data) || request.resource.data.firstName is string)
+                    && (!('lastName' in request.resource.data) || request.resource.data.lastName is string)
+                    && (!('bio' in request.resource.data) || request.resource.data.bio is string)
+                    && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is number);
+
+      // Profile updates rule:
+      // 1. User can update ONLY editable fields (fullName, firstName, lastName, phoneNumber, primaryLocation, bio)
+      // 2. Protected fields (uid, email, role, createdAt) remain strictly immutable
+      // 3. Bio length limited to max 180 characters if provided
+      allow update: if isOwner(userId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'firstName', 'lastName', 'phoneNumber', 'primaryLocation', 'bio'])
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.fullName is string
+                    && request.resource.data.phoneNumber is string
+                    && request.resource.data.primaryLocation is string
+                    && (!('firstName' in request.resource.data) || request.resource.data.firstName is string)
+                    && (!('lastName' in request.resource.data) || request.resource.data.lastName is string)
+                    && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 180));
     }
   }
 }

@@ -223,4 +223,44 @@ class AuthTests {
         // Assert
         assertEquals("Administrator", UserRepository.getCurrentUser().role)
     }
+
+    /**
+     * AUTH_LOGIN_006 | Positive
+     * Description: Verify that customer login has role User/Customer and routes to Home, never Owner Onboarding.
+     */
+    @Test
+    fun AUTH_LOGIN_006_customer_login_role_ensures_home_navigation() {
+        val email = "user@gmail.com"
+        val user = UserRepository.findUser(email)
+        assertNotNull(user)
+        UserRepository.setCurrentUser(user)
+
+        val currentUser = UserRepository.getCurrentUser()
+        assertTrue("Customer role is neither Car Wash Owner nor Administrator", currentUser.role != "Car Wash Owner" && currentUser.role != "Administrator")
+    }
+
+    /**
+     * AUTH_LOGIN_007 | Positive
+     * Description: Verify unapproved owner applicant has role Customer even if requestedRole is Car Wash Owner.
+     */
+    @Test
+    fun AUTH_LOGIN_007_unapproved_owner_applicant_retains_customer_role() {
+        val ownerApplicant = UserAccount(
+            fullName = "Applicant User",
+            phoneNumber = "999111222",
+            email = "applicant@gmail.com",
+            password = "Pass123!#",
+            role = "Customer",
+            requestedRole = "Car Wash Owner",
+            primaryLocation = "Blantyre"
+        )
+        UserRepository.registerUser(ownerApplicant)
+        UserRepository.setCurrentUser(ownerApplicant)
+
+        val currentUser = UserRepository.getCurrentUser()
+        assertEquals("Customer", currentUser.role)
+        assertEquals("Car Wash Owner", currentUser.requestedRole)
+        assertTrue("Owner applicant does not receive Car Wash Owner dashboard/onboarding access", currentUser.role != "Car Wash Owner")
+    }
 }
+

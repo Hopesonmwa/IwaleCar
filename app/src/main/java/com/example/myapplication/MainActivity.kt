@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppLayout() {
     var currentScreen by remember { mutableStateOf(Screen.SPLASH) }
+    var loginSuccessMessage by remember { mutableStateOf<String?>(null) }
     var selectedFacility by remember { mutableStateOf<CarWashFacility?>(null) }
     var selectedTier by remember {
         mutableStateOf(
@@ -110,9 +111,10 @@ fun MainAppLayout() {
         when (screen) {
             Screen.SPLASH -> {
                 SplashScreen {
-                    if (FirebaseServices.auth.currentUser != null) {
-                        val userAccount = UserRepository.getCurrentUser()
-                        when (userAccount.role) {
+                    val firebaseUser = FirebaseServices.auth.currentUser
+                    val currentUser = UserRepository.getCurrentUser()
+                    if (firebaseUser != null && currentUser.email.isNotBlank()) {
+                        when (currentUser.role) {
                             "Car Wash Owner" -> currentScreen = Screen.OWNER_DASHBOARD
                             "Administrator", "SuperAdmin" -> currentScreen = Screen.ADMIN_DASHBOARD
                             else -> currentScreen = Screen.HOME
@@ -125,6 +127,7 @@ fun MainAppLayout() {
             Screen.LOGIN -> {
                 LoginScreen(
                     onSignInClick = { user ->
+                        loginSuccessMessage = null
                         when (user?.role) {
                             "Car Wash Owner" -> currentScreen = Screen.OWNER_DASHBOARD
                             "Administrator", "SuperAdmin" -> currentScreen = Screen.ADMIN_DASHBOARD
@@ -132,11 +135,14 @@ fun MainAppLayout() {
                         }
                     },
                     onCreateAccountClick = {
+                        loginSuccessMessage = null
                         currentScreen = Screen.SIGNUP
                     },
                     onForgotPasswordClick = {
+                        loginSuccessMessage = null
                         currentScreen = Screen.FORGOT_PASSWORD
-                    }
+                    },
+                    successMessage = loginSuccessMessage
                 )
             }
             Screen.FORGOT_PASSWORD -> {
@@ -151,15 +157,19 @@ fun MainAppLayout() {
             }
             Screen.SIGNUP -> {
                 SignUpScreen(
-                    onSignUpClick = { _ ->
-                        val currentUser = UserRepository.getCurrentUser()
-                        if (currentUser.requestedRole == "Car Wash Owner") {
+                    onSignUpClick = { email ->
+                        val registeredUser = UserRepository.findUser(email)
+                        if (registeredUser != null && registeredUser.requestedRole == "Car Wash Owner") {
+                            UserRepository.setCurrentUser(registeredUser)
                             currentScreen = Screen.OWNER_ONBOARDING
                         } else {
-                            currentScreen = Screen.HOME
+                            AuthRepository.logout()
+                            loginSuccessMessage = "Account created successfully! Please sign in with your credentials."
+                            currentScreen = Screen.LOGIN
                         }
                     },
                     onSignInClick = {
+                        loginSuccessMessage = null
                         currentScreen = Screen.LOGIN
                     }
                 )
@@ -455,10 +465,13 @@ fun MainAppLayout() {
             Screen.OWNER_ONBOARDING -> {
                 OwnerOnboardingScreen(
                     onContinueToCustomerClick = {
-                        currentScreen = Screen.HOME
+                        AuthRepository.logout()
+                        loginSuccessMessage = "Owner application registered. Please sign in with your credentials."
+                        currentScreen = Screen.LOGIN
                     },
                     onSignOutClick = {
                         AuthRepository.logout()
+                        loginSuccessMessage = null
                         currentScreen = Screen.LOGIN
                     }
                 )

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -67,11 +68,17 @@ import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.UserAccount
 import com.example.myapplication.data.ValidationUtils
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.launch
 
 enum class UserRole(val title: String) {
-    USER("User"),
+    CUSTOMER("Customer"),
     OWNER("Car Wash Owner")
+}
+
+private enum class LegalDocumentType {
+    TERMS_OF_SERVICE,
+    PRIVACY_POLICY
 }
 
 @Composable
@@ -79,27 +86,32 @@ fun SignUpScreen(
     onSignUpClick: (String) -> Unit = {},
     onSignInClick: () -> Unit = {}
 ) {
-    var fullName by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var verifyPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var isVerifyPasswordVisible by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf<UserRole?>(UserRole.USER) }
+    var selectedRole by remember { mutableStateOf<UserRole?>(UserRole.CUSTOMER) }
     var selectedLocation by remember { mutableStateOf("Lilongwe") }
     var isTermsAccepted by remember { mutableStateOf(false) }
+    var activeLegalDocument by remember { mutableStateOf<LegalDocumentType?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Validation Flags
+    val isFirstNameValid = firstName.trim().isNotEmpty()
+    val isLastNameValid = lastName.trim().isNotEmpty()
     val isPhoneValid = ValidationUtils.isPhoneValid(phoneNumber)
     val isEmailValid = ValidationUtils.isEmailValid(email)
     val isPasswordFormatValid = ValidationUtils.isPasswordComplex(password)
     val isPasswordMatching = password.isNotEmpty() && password == verifyPassword
 
-    val isFormValid = fullName.trim().isNotEmpty() &&
+    val isFormValid = isFirstNameValid &&
+            isLastNameValid &&
             isPhoneValid &&
             isEmailValid &&
             isPasswordFormatValid &&
@@ -120,13 +132,18 @@ fun SignUpScreen(
         }
 
         errorMessage = null
+        val roleTitle = selectedRole?.title ?: "Customer"
+        val fullNameCombined = "${firstName.trim()} ${lastName.trim()}"
         val newUser = UserAccount(
-            fullName = fullName.trim(),
+            fullName = fullNameCombined,
             phoneNumber = phoneNumber.trim(),
             email = email.trim(),
             password = password,
-            role = selectedRole?.title ?: "User",
-            primaryLocation = selectedLocation
+            role = roleTitle,
+            primaryLocation = selectedLocation,
+            requestedRole = roleTitle,
+            firstName = firstName.trim(),
+            lastName = lastName.trim()
         )
 
         isLoading = true
@@ -258,7 +275,7 @@ fun SignUpScreen(
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     Icon(
-                                        imageVector = if (role == UserRole.USER) Icons.Outlined.Person else Icons.Outlined.Storefront,
+                                        imageVector = if (role == UserRole.CUSTOMER) Icons.Outlined.Person else Icons.Outlined.Storefront,
                                         contentDescription = null,
                                         tint = if (isSelected) Color.White else Color(0xFF64748B),
                                         modifier = Modifier.size(18.dp)
@@ -277,61 +294,126 @@ fun SignUpScreen(
                 }
             }
 
-            // Full Name
+            // First Name & Last Name
             item {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Full Name",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFF0F5FA))
-                            .padding(horizontal = 14.dp, vertical = 14.dp)
+                    // First Name
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.Person,
-                                contentDescription = null,
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(20.dp)
-                            )
+                        Text(
+                            text = "First Name",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
 
-                            Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF0F5FA))
+                                .padding(horizontal = 14.dp, vertical = 14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(18.dp)
+                                )
 
-                            Box(
-                                modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                if (fullName.isEmpty()) {
-                                    Text(
-                                        text = "e.g. Kondwani Phiri",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF94A3B8)
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (firstName.isEmpty()) {
+                                        Text(
+                                            text = "e.g. Kondwani",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+
+                                    BasicTextField(
+                                        value = firstName,
+                                        onValueChange = {
+                                            firstName = it
+                                            errorMessage = null
+                                        },
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF0F172A)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
+                            }
+                        }
+                    }
 
-                                BasicTextField(
-                                    value = fullName,
-                                    onValueChange = {
-                                        fullName = it
-                                        errorMessage = null
-                                    },
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF0F172A)
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
+                    // Last Name
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Last Name",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF0F5FA))
+                                .padding(horizontal = 14.dp, vertical = 14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(18.dp)
                                 )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (lastName.isEmpty()) {
+                                        Text(
+                                            text = "e.g. Phiri",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+
+                                    BasicTextField(
+                                        value = lastName,
+                                        onValueChange = {
+                                            lastName = it
+                                            errorMessage = null
+                                        },
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF0F172A)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
@@ -757,13 +839,50 @@ fun SignUpScreen(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        Text(
-                            text = "I agree to Iwale Car's Terms of Service and Privacy Policy.",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A),
-                            lineHeight = 18.sp
-                        )
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "I agree to IWALE Car's ",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "Terms of Service",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0284C7),
+                                    textDecoration = TextDecoration.Underline,
+                                    modifier = Modifier.clickable {
+                                        activeLegalDocument = LegalDocumentType.TERMS_OF_SERVICE
+                                    }
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "and ",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = "Privacy Policy",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0284C7),
+                                    textDecoration = TextDecoration.Underline,
+                                    modifier = Modifier.clickable {
+                                        activeLegalDocument = LegalDocumentType.PRIVACY_POLICY
+                                    }
+                                )
+                                Text(
+                                    text = ".",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -775,7 +894,7 @@ fun SignUpScreen(
                     enabled = !isLoading,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = PrimaryBlue,
                         contentColor = Color.White,
                         disabledContainerColor = Color(0xFFCBD5E1),
                         disabledContentColor = Color(0xFF64748B)
@@ -826,6 +945,126 @@ fun SignUpScreen(
                 }
             }
         }
+    }
+
+    // Modal Popup for Terms of Service & Privacy Policy
+    if (activeLegalDocument != null) {
+        val docType = activeLegalDocument!!
+        val isTerms = docType == LegalDocumentType.TERMS_OF_SERVICE
+        val title = if (isTerms) "Terms of Service" else "Privacy Policy"
+        val bodyText = if (isTerms) {
+            """IWALE CAR - TERMS OF SERVICE
+
+1. REGISTRATION RESPONSIBILITIES
+Users must provide accurate, current, and complete information during registration (including first name, last name, phone number, and email address). Users are responsible for maintaining the confidentiality of their account credentials and for all activities under their account.
+
+2. CUSTOMER BOOKINGS & CANCELLATIONS
+Customers may select available car wash facilities, service bays, dates, and times. Bookings are subject to availability and facility confirmation. Cancellations must be performed within the applicable facility's notice period.
+
+3. PAYMENTS & TRANSACTIONS
+All payments made through mobile money or supported payment methods are processed securely. Users agree to pay all applicable fees for selected car wash services.
+
+4. FACILITY RESPONSIBILITIES
+Registered car wash facilities are responsible for providing services safely, professionally, and in accordance with scheduled booking times and listed service specifications.
+
+5. USER CONDUCT
+Users agree not to misuse the platform, attempt unauthorized access, upload harmful content, submit fraudulent bookings, or engage in abusive behavior towards facility staff or administrators.
+
+6. ACCOUNT SUSPENSION & TERMINATION
+IWALE Car reserves the right to suspend or terminate accounts that violate these Terms, engage in fraudulent activities, or disrupt service operations.
+
+7. DISPUTE RESOLUTION
+Any disputes arising from service bookings or platform usage shall be resolved through good-faith negotiation between the affected parties or through IWALE Car customer support mediation."""
+        } else {
+            """IWALE CAR - PRIVACY POLICY
+
+1. PERSONAL INFORMATION COLLECTION
+We collect information you provide directly during registration and account usage, including your first name, last name, phone number, email address, primary wash location, and booking preferences.
+
+2. FIREBASE STORAGE & INFRASTRUCTURE
+Your account data, authentication credentials, and user profile information are securely stored using Google Firebase Authentication and Cloud Firestore infrastructure.
+
+3. USE OF INFORMATION
+Collected information is used to manage your account, process car wash reservations, communicate booking updates, personalize location preferences, and improve application functionality.
+
+4. SHARING WITH CAR WASH FACILITIES
+When you place a booking, necessary information (such as your name, contact phone number, and booking time) is shared with the selected car wash facility to fulfill your service.
+
+5. DATA SECURITY
+We implement industry-standard security measures and role-based access controls to safeguard your personal data against unauthorized access, alteration, or disclosure.
+
+6. DATA RETENTION
+Your personal information is retained for as long as your account remains active or as needed to provide booking services, resolve disputes, and comply with operational requirements.
+
+7. PRIVACY RIGHTS
+You have the right to view, update, or correct your personal profile information at any time through the application settings."""
+        }
+
+        AlertDialog(
+            onDismissRequest = { activeLegalDocument = null },
+            title = {
+                Text(
+                    text = title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text(
+                            text = bodyText,
+                            fontSize = 12.sp,
+                            color = Color(0xFF334155),
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isTermsAccepted = true
+                        errorMessage = null
+                        activeLegalDocument = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "I Agree",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = {
+                        isTermsAccepted = false
+                        activeLegalDocument = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "I Disagree",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 

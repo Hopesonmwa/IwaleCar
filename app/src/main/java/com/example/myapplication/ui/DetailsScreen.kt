@@ -54,6 +54,7 @@ import com.example.myapplication.data.toCarWashTiers
 import com.example.myapplication.ui.components.CarWashBayPlaceholder
 import com.example.myapplication.ui.components.CarWashIcons
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 
 @Composable
 fun DetailsScreen(
@@ -179,7 +180,7 @@ fun DetailsScreen(
                             onClick = onBackClick,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0284C7),
+                                containerColor = PrimaryBlue,
                                 contentColor = Color.White
                             ),
                             modifier = Modifier.height(48.dp)
@@ -191,7 +192,7 @@ fun DetailsScreen(
                             onClick = { onBookClick(selectedTier) },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0B132B),
+                                containerColor = PrimaryBlue,
                                 contentColor = Color.White
                             ),
                             modifier = Modifier

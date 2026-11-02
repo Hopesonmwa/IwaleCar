@@ -95,6 +95,38 @@ class AuthRepositoryTest {
     }
 
     /**
+     * AUTH_FIREBASE_008 | Positive / Customer Registration & Names
+     * Description: Verify that Customer registration signs out immediately, and first/last names are parsed/preserved.
+     */
+    @Test
+    fun AUTH_FIREBASE_008_customer_signup_signs_out_immediately_and_parses_names() = runBlocking {
+        val customerAccount = UserAccount(
+            fullName = "Kondwani Phiri",
+            phoneNumber = "999123456",
+            email = "kondwani.phiri@gmail.com",
+            password = "Pass123!#",
+            role = "Customer",
+            primaryLocation = "Lilongwe",
+            firstName = "Kondwani",
+            lastName = "Phiri"
+        )
+
+        assertEquals("Kondwani", customerAccount.firstName)
+        assertEquals("Phiri", customerAccount.lastName)
+
+        val result = AuthRepository.signUp(customerAccount, "Pass123!#")
+        assertTrue("Sign up succeeds", result.isSuccess)
+        val createdUser = result.getOrNull()
+        assertEquals("Customer", createdUser?.role)
+        assertEquals("Kondwani", createdUser?.firstName)
+        assertEquals("Phiri", createdUser?.lastName)
+
+        // Verify session signed out for Customer
+        val currentUser = UserRepository.getCurrentUser()
+        assertTrue("Current user is cleared or reset to fallback after Customer sign up", currentUser.email != "kondwani.phiri@gmail.com")
+    }
+
+    /**
      * AUTH_FIREBASE_003 | Positive
      * Description: Verify that logging in with valid credentials via AuthRepository authenticates the user.
      * Prerequisites: User registered in Firebase Auth / Repository.
@@ -145,4 +177,60 @@ class AuthRepositoryTest {
         val current = UserRepository.getCurrentUser()
         assertNotNull("Session cleared or reset to default fallback state", current)
     }
+
+    /**
+     * AUTH_FIREBASE_009 | Positive / Profile Editing
+     * Description: Verify that updateUserProfile updates bio and phone number while preserving user role and identity.
+     */
+    @Test
+    fun AUTH_FIREBASE_009_update_user_profile_bio_and_phone() = runBlocking {
+        AuthRepository.login("user@gmail.com", "1234")
+        val currentUser = AuthRepository.getCurrentUser()
+        assertNotNull("Logged in user exists", currentUser)
+
+        val updatedBio = "Updated bio text for test user."
+        val updatedPhone = "997766554"
+
+        val updatedAccount = currentUser.copy(
+            bio = updatedBio,
+            phoneNumber = updatedPhone
+        )
+
+        val result = AuthRepository.updateUserProfile(updatedAccount)
+        assertTrue("Profile update succeeds", result.isSuccess)
+
+        val storedUser = AuthRepository.getCurrentUser()
+        assertEquals(updatedBio, storedUser.bio)
+        assertEquals(updatedPhone, storedUser.phoneNumber)
+        assertEquals(currentUser.role, storedUser.role)
+        assertEquals(currentUser.email, storedUser.email)
+    }
+
+    /**
+     * AUTH_FIREBASE_010 | Positive / Registration Fields & Security
+     * Description: Verify that customer and owner registration parse first and last names and produce Customer role.
+     */
+    @Test
+    fun AUTH_FIREBASE_010_verify_profile_map_fields_and_name_handling() = runBlocking {
+        val user = UserAccount(
+            fullName = "Chisomo Bandason",
+            phoneNumber = "998877661",
+            email = "chisomo.bandason@gmail.com",
+            password = "Pass123!#",
+            role = "Car Wash Owner",
+            primaryLocation = "Lilongwe"
+        )
+
+        val signUpResult = AuthRepository.signUp(user, "Pass123!#")
+        assertTrue("Registration succeeds", signUpResult.isSuccess)
+        val createdUser = signUpResult.getOrNull()
+
+        assertNotNull("User created", createdUser)
+        assertEquals("Customer", createdUser?.role)
+        assertEquals("Car Wash Owner", createdUser?.requestedRole)
+        assertEquals("Chisomo", createdUser?.firstName)
+        assertEquals("Bandason", createdUser?.lastName)
+    }
 }
+
+

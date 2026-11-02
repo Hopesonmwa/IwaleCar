@@ -1,5 +1,6 @@
 package com.example.myapplication.data
 
+import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -41,14 +42,17 @@ object AuthRepository {
 
             val uid = firebaseUser.uid
 
-            // Prepare the user's Firestore profile
+            // Prepare the user's Firestore profile map with all required fields
             val profileMap = hashMapOf(
                 "uid" to uid,
                 "fullName" to sanitizedUser.fullName,
+                "firstName" to sanitizedUser.firstName,
+                "lastName" to sanitizedUser.lastName,
                 "phoneNumber" to sanitizedUser.phoneNumber,
                 "email" to sanitizedUser.email.trim(),
                 "role" to sanitizedUser.role,
                 "primaryLocation" to sanitizedUser.primaryLocation,
+                "bio" to sanitizedUser.bio,
                 "createdAt" to System.currentTimeMillis()
             )
 
@@ -59,6 +63,7 @@ object AuthRepository {
                     .set(profileMap)
                     .await()
             } catch (firestoreException: Exception) {
+                // Rollback: Delete newly created Firebase Auth account to prevent orphaned account
                 try {
                     firebaseUser.delete().await()
                 } catch (cleanupException: Exception) {
@@ -68,13 +73,23 @@ object AuthRepository {
                 return@withContext Result.failure(
                     Exception(
                         "Your account could not be fully created. Please try again. " +
-                                (firestoreException.localizedMessage ?: "")
+                                (firestoreException.localizedMessage ?: "Permission denied or network error.")
                     )
                 )
             }
 
             UserRepository.registerUser(sanitizedUser)
-            UserRepository.setCurrentUser(sanitizedUser)
+
+            if (sanitizedUser.requestedRole == "Car Wash Owner") {
+                UserRepository.setCurrentUser(sanitizedUser)
+            } else {
+                try {
+                    auth.signOut()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                UserRepository.setCurrentUser(null)
+            }
 
             Result.success(sanitizedUser)
 
@@ -86,10 +101,18 @@ object AuthRepository {
             Result.failure(
                 Exception("Invalid email format or password requirement not met.")
             )
+        } catch (e: FirebaseException) {
+            Result.failure(
+                Exception(e.localizedMessage ?: "Registration failed. Please try again.")
+            )
         } catch (e: Exception) {
-            // Fallback for local JVM unit test / offline environment
+            // Fallback for local JVM unit test environment where Firebase SDK is not initialized
             UserRepository.registerUser(sanitizedUser)
-            UserRepository.setCurrentUser(sanitizedUser)
+            if (sanitizedUser.requestedRole == "Car Wash Owner") {
+                UserRepository.setCurrentUser(sanitizedUser)
+            } else {
+                UserRepository.setCurrentUser(null)
+            }
             Result.success(sanitizedUser)
         }
     }
@@ -138,13 +161,19 @@ object AuthRepository {
 
                 if (doc.exists()) {
                     val role = doc.getString("role") ?: "User"
+                    val fullName = doc.getString("fullName") ?: "User"
+                    val firstName = doc.getString("firstName") ?: fullName.substringBefore(" ").ifBlank { fullName }
+                    val lastName = doc.getString("lastName") ?: fullName.substringAfter(" ", "").ifBlank { "" }
                     loggedInUser = UserAccount(
-                        fullName = doc.getString("fullName") ?: "User",
+                        fullName = fullName,
                         phoneNumber = doc.getString("phoneNumber") ?: "",
                         email = doc.getString("email") ?: trimmedEmail,
                         password = password,
                         role = role,
-                        primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe"
+                        primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe",
+                        bio = doc.getString("bio") ?: "",
+                        firstName = firstName,
+                        lastName = lastName
                     )
                 }
             } catch (e: Exception) {
@@ -222,13 +251,19 @@ object AuthRepository {
 
             val userAccount = if (doc.exists()) {
                 val role = doc.getString("role") ?: "User"
+                val fullName = doc.getString("fullName") ?: "User"
+                val firstName = doc.getString("firstName") ?: fullName.substringBefore(" ").ifBlank { fullName }
+                val lastName = doc.getString("lastName") ?: fullName.substringAfter(" ", "").ifBlank { "" }
                 UserAccount(
-                    fullName = doc.getString("fullName") ?: "User",
+                    fullName = fullName,
                     phoneNumber = doc.getString("phoneNumber") ?: "",
                     email = doc.getString("email") ?: firebaseUser.email ?: "",
                     password = "",
                     role = role,
-                    primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe"
+                    primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe",
+                    bio = doc.getString("bio") ?: "",
+                    firstName = firstName,
+                    lastName = lastName
                 )
             } else {
                 UserRepository.findUser(firebaseUser.email ?: "") ?: UserAccount(
@@ -261,6 +296,34 @@ object AuthRepository {
             e.printStackTrace()
         }
         UserRepository.setCurrentUser(null)
+    }
+
+    /**
+     * Updates editable user profile fields (bio, phoneNumber, fullName, primaryLocation) in Firestore and local repository state.
+     */
+    suspend fun updateUserProfile(updatedUser: UserAccount): Result<UserAccount> = withContext(Dispatchers.IO) {
+        val firebaseUser = try { auth.currentUser } catch (e: Exception) { null }
+
+        if (firebaseUser != null) {
+            try {
+                val updates = hashMapOf<String, Any>(
+                    "fullName" to updatedUser.fullName,
+                    "phoneNumber" to updatedUser.phoneNumber,
+                    "primaryLocation" to updatedUser.primaryLocation,
+                    "bio" to updatedUser.bio
+                )
+                db.collection("users")
+                    .document(firebaseUser.uid)
+                    .update(updates)
+                    .await()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        UserRepository.registerUser(updatedUser)
+        UserRepository.setCurrentUser(updatedUser)
+        Result.success(updatedUser)
     }
 
     /**

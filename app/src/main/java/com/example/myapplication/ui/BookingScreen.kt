@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.example.myapplication.data.CarWashTier
 import com.example.myapplication.ui.components.CarWashIcons
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 
 enum class PaymentMethod(val title: String) {
     AIRTEL_MONEY("Airtel Money"),
@@ -175,7 +176,7 @@ fun BookingScreen(
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF0B132B),
+                                containerColor = PrimaryBlue,
                                 contentColor = Color.White
                             ),
                             modifier = Modifier

@@ -64,6 +64,7 @@ import com.example.myapplication.ui.components.CarWashBayPlaceholder
 import com.example.myapplication.ui.components.CarWashIcons
 import com.example.myapplication.ui.components.NavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.delay
 
 enum class MobilePaymentProvider(val title: String) {
@@ -680,7 +681,7 @@ fun PaymentScreen(
                     onClick = { validateAndProcessPayment() },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = PrimaryBlue,
                         contentColor = Color.White
                     ),
                     modifier = Modifier

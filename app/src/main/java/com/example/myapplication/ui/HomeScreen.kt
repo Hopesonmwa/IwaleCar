@@ -50,6 +50,7 @@ import com.example.myapplication.ui.components.NavItem
 import com.example.myapplication.ui.components.SearchBar
 import com.example.myapplication.ui.components.SelfServiceBanner
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.PrimaryBlue
 
 @Composable
 fun HomeScreen(
@@ -208,7 +209,7 @@ fun HomeScreen(
                                     onClick = { searchQuery = "" },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF0284C7),
+                                        containerColor = PrimaryBlue,
                                         contentColor = Color.White
                                     )
                                 ) {

@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import com.example.myapplication.data.BookingRepository
 import com.example.myapplication.data.UserRepository
+import com.example.myapplication.data.ValidationUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -183,4 +184,99 @@ class SessionHistoryProfileTests {
         val storedUser = UserRepository.findUser("customer.test@gmail.com")
         assertEquals("Blantyre", storedUser?.primaryLocation)
     }
+
+    /**
+     * PROFILE_002 | Positive
+     * Steps: Open Profile > tap Edit Bio > enter new bio > Save.
+     * Expected: Personal bio is updated and persisted in profile.
+     */
+    @Test
+    fun PROFILE_002_update_personal_bio_successfully() {
+        // Arrange
+        val user = UserRepository.findUser("user@gmail.com")
+        assertNotNull("Test user exists", user)
+
+        val newBio = "Passionate car enthusiast and daily commuter in Lilongwe."
+
+        // Act
+        val updatedUser = user!!.copy(bio = newBio)
+        UserRepository.registerUser(updatedUser)
+
+        // Assert
+        val storedUser = UserRepository.findUser("user@gmail.com")
+        assertEquals(newBio, storedUser?.bio)
+    }
+
+    /**
+     * PROFILE_003 | Positive
+     * Steps: Open Profile > tap pencil icon next to phone > enter valid 9-digit Malawi phone number > Save.
+     * Expected: Phone number is validated, updated and persisted.
+     */
+    @Test
+    fun PROFILE_003_update_phone_number_with_valid_malawi_format() {
+        // Arrange
+        val user = UserRepository.findUser("user@gmail.com")
+        assertNotNull("Test user exists", user)
+
+        val newValidPhone = "998877665"
+        assertTrue("Phone is valid 9-digit Malawi format", ValidationUtils.isPhoneValid(newValidPhone))
+
+        // Act
+        val updatedUser = user!!.copy(phoneNumber = newValidPhone)
+        UserRepository.registerUser(updatedUser)
+
+        // Assert
+        val storedUser = UserRepository.findUser("user@gmail.com")
+        assertEquals(newValidPhone, storedUser?.phoneNumber)
+    }
+
+    /**
+     * PROFILE_004 | Negative
+     * Steps: Open Profile > enter invalid phone number (e.g. 5 digits or non-numeric) > attempt Save.
+     * Expected: Phone validation rejects invalid input and prevents saving.
+     */
+    @Test
+    fun PROFILE_004_reject_invalid_phone_number() {
+        // Arrange & Act
+        val shortPhone = "12345"
+        val nonNumericPhone = "999ABCDEF"
+        val longPhone = "99912345678"
+
+        // Assert
+        assertFalse("Reject short phone number", ValidationUtils.isPhoneValid(shortPhone))
+        assertFalse("Reject non-numeric phone number", ValidationUtils.isPhoneValid(nonNumericPhone))
+        assertFalse("Reject long phone number", ValidationUtils.isPhoneValid(longPhone))
+    }
+
+    /**
+     * PROFILE_005 | Positive / Security
+     * Steps: Open Profile > update personal bio > verify other user profile fields remain unchanged.
+     * Expected: Bio is updated; fullName, email, role, primaryLocation, and phoneNumber are preserved.
+     */
+    @Test
+    fun PROFILE_005_bio_editing_preserves_other_profile_fields() {
+        // Arrange
+        val user = UserRepository.findUser("user@gmail.com")
+        assertNotNull("Test user exists", user)
+        val originalFullName = user!!.fullName
+        val originalEmail = user.email
+        val originalRole = user.role
+        val originalLocation = user.primaryLocation
+        val originalPhone = user.phoneNumber
+
+        // Act: Update bio only
+        val newBio = "Updated bio without modifying other profile fields."
+        val updatedUser = user.copy(bio = newBio)
+        UserRepository.registerUser(updatedUser)
+
+        // Assert
+        val storedUser = UserRepository.findUser("user@gmail.com")
+        assertEquals(newBio, storedUser?.bio)
+        assertEquals(originalFullName, storedUser?.fullName)
+        assertEquals(originalEmail, storedUser?.email)
+        assertEquals(originalRole, storedUser?.role)
+        assertEquals(originalLocation, storedUser?.primaryLocation)
+        assertEquals(originalPhone, storedUser?.phoneNumber)
+    }
 }
+
