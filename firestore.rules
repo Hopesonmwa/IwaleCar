@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for user authentication and ownership
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,56 +10,134 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Secure administrator authorization using Firebase Auth Custom Claims
     function isAdmin() {
       return isAuthenticated() &&
              (('role' in request.auth.token && request.auth.token.role in ['Administrator', 'SuperAdmin']) ||
               ('admin' in request.auth.token && request.auth.token.admin == true));
     }
 
-    // User profiles collection security rules
+    // 1. User Profiles
     match /users/{userId} {
-
-      // Allow users to read their own profile, or admins with custom claims to read any profile
       allow read: if isOwner(userId) || isAdmin();
-
-      // Registration create rule:
-      // 1. Must be authenticated user creating their own document matching request.auth.uid
-      // 2. Document data 'uid' must match request.auth.uid
-      // 3. Document data 'role' MUST equal 'Customer' (prevents self-assignment of Owner/Admin roles)
-      // 4. Document data 'email' must match authenticated token email
-      // 5. Allowed keys must strictly match permitted profile fields using hasOnly()
       allow create: if isOwner(userId)
                     && request.resource.data.keys().hasOnly(['uid', 'fullName', 'firstName', 'lastName', 'phoneNumber', 'email', 'role', 'primaryLocation', 'bio', 'createdAt'])
                     && request.resource.data.keys().hasAll(['uid', 'fullName', 'email', 'role', 'phoneNumber', 'primaryLocation'])
                     && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
                     && request.resource.data.role == 'Customer'
-                    && (request.auth.token.email == null || request.resource.data.email == request.auth.token.email)
-                    && request.resource.data.fullName is string
+                    && request.resource.data.fullName is string && request.resource.data.fullName.size() <= 100
+                    && (!('firstName' in request.resource.data) || (request.resource.data.firstName is string && request.resource.data.firstName.size() <= 50))
+                    && (!('lastName' in request.resource.data) || (request.resource.data.lastName is string && request.resource.data.lastName.size() <= 50))
                     && request.resource.data.email is string
-                    && request.resource.data.phoneNumber is string
-                    && request.resource.data.primaryLocation is string
-                    && (!('firstName' in request.resource.data) || request.resource.data.firstName is string)
-                    && (!('lastName' in request.resource.data) || request.resource.data.lastName is string)
-                    && (!('bio' in request.resource.data) || request.resource.data.bio is string)
-                    && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is number);
-
-      // Profile updates rule:
-      // 1. User can update ONLY editable fields (fullName, firstName, lastName, phoneNumber, primaryLocation, bio)
-      // 2. Protected fields (uid, email, role, createdAt) remain strictly immutable
-      // 3. Bio length limited to max 180 characters if provided
+                    && request.resource.data.phoneNumber is string && request.resource.data.phoneNumber.size() <= 20
+                    && request.resource.data.primaryLocation is string && request.resource.data.primaryLocation.size() <= 50
+                    && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 180))
+                    && request.resource.data.createdAt is number;
       allow update: if isOwner(userId)
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'firstName', 'lastName', 'phoneNumber', 'primaryLocation', 'bio'])
+                    && request.resource.data.fullName is string && request.resource.data.fullName.size() <= 100
+                    && (!('firstName' in request.resource.data) || (request.resource.data.firstName is string && request.resource.data.firstName.size() <= 50))
+                    && (!('lastName' in request.resource.data) || (request.resource.data.lastName is string && request.resource.data.lastName.size() <= 50))
+                    && request.resource.data.phoneNumber is string && request.resource.data.phoneNumber.size() <= 20
+                    && request.resource.data.primaryLocation is string && request.resource.data.primaryLocation.size() <= 50
+                    && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 180))
                     && request.resource.data.uid == resource.data.uid
                     && request.resource.data.email == resource.data.email
                     && request.resource.data.role == resource.data.role
-                    && request.resource.data.createdAt == resource.data.createdAt
-                    && request.resource.data.fullName is string
-                    && request.resource.data.phoneNumber is string
-                    && request.resource.data.primaryLocation is string
-                    && (!('firstName' in request.resource.data) || request.resource.data.firstName is string)
-                    && (!('lastName' in request.resource.data) || request.resource.data.lastName is string)
-                    && (!('bio' in request.resource.data) || (request.resource.data.bio is string && request.resource.data.bio.size() <= 180));
+                    && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    // 2. Facilities, Bays & Tiers
+    match /facilities/{facilityId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAuthenticated()
+                    && resource.data.ownerId == request.auth.uid
+                    && request.resource.data.ownerId == resource.data.ownerId
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'address', 'city', 'phone', 'openingTime', 'closingTime', 'description'])
+                    && request.resource.data.name is string && request.resource.data.name.size() <= 100
+                    && request.resource.data.address is string && request.resource.data.address.size() <= 200
+                    && request.resource.data.city is string && request.resource.data.city.size() <= 50
+                    && request.resource.data.phone is string && request.resource.data.phone.size() <= 20
+                    && request.resource.data.openingTime is string && request.resource.data.openingTime.size() <= 20
+                    && request.resource.data.closingTime is string && request.resource.data.closingTime.size() <= 20
+                    && request.resource.data.description is string && request.resource.data.description.size() <= 500;
+      allow delete: if isAdmin();
+
+      match /bays/{bayId} {
+        allow read: if true;
+        allow create: if isAuthenticated()
+                      && exists(/databases/$(database)/documents/facilities/$(facilityId))
+                      && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['bayNumber', 'serviceTitle', 'priceText', 'priceValue', 'durationText', 'featuresDescription', 'status'])
+                      && request.resource.data.bayNumber is string && request.resource.data.bayNumber.size() <= 50
+                      && request.resource.data.serviceTitle is string && request.resource.data.serviceTitle.size() <= 100
+                      && request.resource.data.priceText is string && request.resource.data.priceText.size() <= 50
+                      && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
+                      && request.resource.data.durationText is string && request.resource.data.durationText.size() <= 30
+                      && request.resource.data.featuresDescription is string && request.resource.data.featuresDescription.size() <= 500
+                      && request.resource.data.status in ['Available', 'Maintenance', 'Occupied'];
+        allow update: if isAuthenticated()
+                      && exists(/databases/$(database)/documents/facilities/$(facilityId))
+                      && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bayNumber', 'serviceTitle', 'priceText', 'priceValue', 'durationText', 'featuresDescription', 'status'])
+                      && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
+                      && request.resource.data.status in ['Available', 'Maintenance', 'Occupied'];
+        allow delete: if false;
+
+        match /tiers/{tierId} {
+          allow read: if true;
+          allow create: if isAuthenticated()
+                        && exists(/databases/$(database)/documents/facilities/$(facilityId))
+                        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
+                        && request.resource.data.keys().hasOnly(['title', 'description', 'priceValue', 'formattedPrice', 'durationMinutes', 'status', 'isMostPopular'])
+                        && request.resource.data.title is string && request.resource.data.title.size() <= 100
+                        && request.resource.data.description is string && request.resource.data.description.size() <= 500
+                        && request.resource.data.formattedPrice is string && request.resource.data.formattedPrice.size() <= 50
+                        && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
+                        && request.resource.data.durationMinutes is int && request.resource.data.durationMinutes > 0 && request.resource.data.durationMinutes <= 240
+                        && request.resource.data.status in ['Available', 'Maintenance', 'Occupied']
+                        && request.resource.data.isMostPopular is bool;
+          allow update: if isAuthenticated()
+                        && exists(/databases/$(database)/documents/facilities/$(facilityId))
+                        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'priceValue', 'formattedPrice', 'durationMinutes', 'status', 'isMostPopular'])
+                        && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
+                        && request.resource.data.durationMinutes is int && request.resource.data.durationMinutes > 0 && request.resource.data.durationMinutes <= 240
+                        && request.resource.data.status in ['Available', 'Maintenance', 'Occupied']
+                        && request.resource.data.isMostPopular is bool;
+          allow delete: if false;
+        }
+
+        match /schedule/{document=**} {
+          allow read: if true;
+          allow write: if false;
+        }
+      }
+    }
+
+    // 3. Bookings, Requests, Guards & Audit Logs (Strict backend control)
+    match /bookings/{bookingId} {
+      allow create, update, delete: if false;
+      allow read: if isAuthenticated() &&
+                    (resource.data.customerId == request.auth.uid ||
+                     resource.data.ownerId == request.auth.uid ||
+                     isAdmin());
+    }
+
+    match /bookingRequests/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /quarantineSlotGuards/{guardId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /quarantineAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

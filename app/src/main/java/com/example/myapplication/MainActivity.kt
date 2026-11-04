@@ -22,6 +22,7 @@ import com.example.myapplication.ui.AdminFacilitiesScreen
 import com.example.myapplication.ui.AdminNotificationsScreen
 import com.example.myapplication.ui.AdminProfileScreen
 import com.example.myapplication.ui.BookedSessionsScreen
+import com.example.myapplication.ui.BookingScreen
 import com.example.myapplication.ui.DetailsScreen
 import com.example.myapplication.ui.ForgotPasswordScreen
 import com.example.myapplication.ui.HistoryScreen
@@ -48,6 +49,7 @@ enum class Screen {
     SIGNUP,
     HOME,
     DETAILS,
+    BOOKING,
     PAYMENT,
     PROFILE,
     HISTORY,
@@ -106,6 +108,9 @@ fun MainAppLayout() {
             )
         )
     }
+    var selectedBayId by remember { mutableStateOf("1_1") }
+    var selectedStartTimeMs by remember { mutableStateOf(System.currentTimeMillis() + 3600_000L) }
+    var selectedEndTimeMs by remember { mutableStateOf(System.currentTimeMillis() + 5400_000L) }
 
     Crossfade(targetState = currentScreen, label = "ScreenNavigation") { screen ->
         when (screen) {
@@ -200,6 +205,24 @@ fun MainAppLayout() {
                     },
                     onBookClick = { tier ->
                         selectedTier = tier
+                        currentScreen = Screen.BOOKING
+                    },
+                    onProfileClick = {
+                        currentScreen = Screen.PROFILE
+                    }
+                )
+            }
+            Screen.BOOKING -> {
+                BookingScreen(
+                    facility = selectedFacility,
+                    tier = selectedTier,
+                    onBackClick = {
+                        currentScreen = Screen.DETAILS
+                    },
+                    onProceedToPayment = { bayId, startMs, endMs ->
+                        selectedBayId = bayId
+                        selectedStartTimeMs = startMs
+                        selectedEndTimeMs = endMs
                         currentScreen = Screen.PAYMENT
                     },
                     onProfileClick = {
@@ -210,8 +233,11 @@ fun MainAppLayout() {
             Screen.PAYMENT -> {
                 PaymentScreen(
                     tier = selectedTier,
+                    bayId = selectedBayId,
+                    startTimeMs = selectedStartTimeMs,
+                    endTimeMs = selectedEndTimeMs,
                     onBackClick = {
-                        currentScreen = Screen.DETAILS
+                        currentScreen = Screen.BOOKING
                     },
                     onPaymentSuccess = {
                         currentScreen = Screen.BOOKED_SESSIONS

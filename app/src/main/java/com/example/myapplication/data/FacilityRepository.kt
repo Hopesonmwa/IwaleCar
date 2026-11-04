@@ -3,7 +3,12 @@ package com.example.myapplication.data
 import androidx.compose.runtime.mutableStateListOf
 import com.example.myapplication.ui.BayConfig
 import com.example.myapplication.ui.FacilityItemData
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.NumberFormat
+import java.util.Calendar
 
 data class FacilityData(
     val id: String,
@@ -21,10 +26,16 @@ data class FacilityData(
     val ownerId: String = "owner@gmail.com",
     val badgeText: String = "High Pressure Jet",
     val badgeType: BadgeType = BadgeType.HIGH_PRESSURE_JET,
-    val imageUrl: String = "https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=800&q=80"
+    val imageUrl: String = "https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=800&q=80",
+    val operatingDays: List<Int> = listOf(
+        Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+    )
 )
 
 object FacilityRepository {
+
+    private val db: FirebaseFirestore get() = FirebaseServices.db
+
     private val defaultArea4Bays = listOf(
         BayConfig(id = "1_1", bayNumber = "BAY 01", serviceTitle = "Foam Cannon Express", priceText = "MWK 5,000", priceValue = 5000, durationText = "10 mins", featuresDescription = "Foam lance, wheel blast & spot rinse", status = "Available"),
         BayConfig(id = "1_2", bayNumber = "BAY 02", serviceTitle = "High-Pressure Wash & Foam", priceText = "MWK 10,000", priceValue = 10000, durationText = "20 mins", featuresDescription = "High-pressure jet, active foam & wax", status = "Available"),
@@ -51,7 +62,10 @@ object FacilityRepository {
             description = "High-Pressure Washing Bays • 06:30 – 20:00 CAT",
             status = "Approved",
             ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays
+            bays = defaultArea4Bays,
+            operatingDays = listOf(
+                Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+            )
         ),
         FacilityData(
             id = "2",
@@ -66,7 +80,10 @@ object FacilityRepository {
             description = "Foam Cannon & Ceramic Rinse Bays",
             status = "Approved",
             ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays.take(3)
+            bays = defaultArea4Bays.take(3),
+            operatingDays = listOf(
+                Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+            )
         ),
         FacilityData(
             id = "3",
@@ -81,7 +98,10 @@ object FacilityRepository {
             description = "Touchless Tunnel & Underbody Rinse",
             status = "Approved",
             ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays.take(2)
+            bays = defaultArea4Bays.take(2),
+            operatingDays = listOf(
+                Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY
+            )
         ),
         FacilityData(
             id = "4",
@@ -96,7 +116,10 @@ object FacilityRepository {
             description = "Automated Foam Bays • Blantyre Express",
             status = "Approved",
             ownerId = "carwash@gmail.com",
-            bays = defaultGinneryBays
+            bays = defaultGinneryBays,
+            operatingDays = listOf(
+                Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+            )
         ),
         FacilityData(
             id = "5",
@@ -159,6 +182,92 @@ object FacilityRepository {
         selectedFacilityId = id
     }
 
+    /**
+     * Asynchronously retrieves approved facilities and their washing bays from Firestore `facilities/{facilityId}` and `facilities/{facilityId}/bays`.
+     */
+    suspend fun fetchApprovedFacilitiesFromFirestore(): Result<List<FacilityData>> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = db.collection("facilities")
+                .whereEqualTo("status", "Approved")
+                .get()
+                .await()
+
+            val fetchedFacilities = mutableListOf<FacilityData>()
+
+            for (doc in snapshot.documents) {
+                val facilityId = doc.id
+                val name = doc.getString("name") ?: ""
+                val area = doc.getString("area") ?: doc.getString("city") ?: "Lilongwe"
+                val address = doc.getString("address") ?: ""
+                val city = doc.getString("city") ?: area
+                val phone = doc.getString("phone") ?: ""
+                val openingTime = doc.getString("openingTime") ?: "06:30 AM"
+                val closingTime = doc.getString("closingTime") ?: "08:00 PM"
+                val description = doc.getString("description") ?: ""
+                val status = doc.getString("status") ?: "Approved"
+                val ownerId = doc.getString("ownerId") ?: ""
+                val badgeText = doc.getString("badgeText") ?: "High Pressure Jet"
+                val imageUrl = doc.getString("imageUrl") ?: "https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=800&q=80"
+
+                val rawDays = doc.get("operatingDays") as? List<*>
+                val operatingDays = rawDays?.mapNotNull { (it as? Long)?.toInt() } ?: listOf(
+                    Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+                )
+
+                // Fetch bays subcollection for this facility
+                val baysSnapshot = db.collection("facilities")
+                    .document(facilityId)
+                    .collection("bays")
+                    .get()
+                    .await()
+
+                val baysList = baysSnapshot.documents.map { bayDoc ->
+                    BayConfig(
+                        id = bayDoc.id,
+                        bayNumber = bayDoc.getString("bayNumber") ?: "BAY 01",
+                        serviceTitle = bayDoc.getString("serviceTitle") ?: "Foam Wash",
+                        featuresDescription = bayDoc.getString("featuresDescription") ?: "High pressure rinse",
+                        priceText = bayDoc.getString("priceText") ?: "MWK 5,000",
+                        priceValue = bayDoc.getLong("priceValue")?.toInt() ?: 5000,
+                        durationText = bayDoc.getString("durationText") ?: "30 mins",
+                        status = bayDoc.getString("status") ?: "Available"
+                    )
+                }
+
+                fetchedFacilities.add(
+                    FacilityData(
+                        id = facilityId,
+                        name = name,
+                        area = area,
+                        address = address,
+                        city = city,
+                        phone = phone,
+                        bayCount = baysList.size,
+                        openingTime = openingTime,
+                        closingTime = closingTime,
+                        description = description,
+                        status = status,
+                        bays = baysList,
+                        ownerId = ownerId,
+                        badgeText = badgeText,
+                        imageUrl = imageUrl,
+                        operatingDays = operatingDays
+                    )
+                )
+            }
+
+            if (fetchedFacilities.isNotEmpty()) {
+                facilities.clear()
+                facilities.addAll(fetchedFacilities)
+            }
+
+            Result.success(facilities)
+        } catch (e: Exception) {
+            // Return failure on real network/permission exceptions without overwriting local cache
+            Result.failure(e)
+        }
+    }
+
     fun getAllFacilities(): List<FacilityData> {
         return facilities
     }
@@ -182,7 +291,6 @@ object FacilityRepository {
             return ownerFacilities
         }
 
-        // If new owner has no facility, create an initial facility for this owner
         val currentUser = UserRepository.findUser(ownerEmail)
         val ownerName = currentUser?.fullName ?: "My Car Wash"
         val ownerLocation = currentUser?.primaryLocation ?: "Lilongwe"

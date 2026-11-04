@@ -201,11 +201,29 @@ object BookingRepository {
         return bookings.any { booking ->
             if (booking.id == excludeBookingId) return@any false
             if (booking.facilityId != facilityId || booking.bayId != bayId) return@any false
-            if (booking.status.equals("Cancelled", ignoreCase = true) || booking.paymentStatus != "SUCCESSFUL") return@any false
+            if (booking.status.equals("Cancelled", ignoreCase = true) || booking.paymentStatus == "FAILED") return@any false
 
             // Interval overlap rule: newStartMs < existingEndMs && existingStartMs < newEndMs
             newStartMs < booking.endTimeMs && booking.startTimeMs < newEndMs
         }
+    }
+
+    fun getReservationConflictType(
+        facilityId: String,
+        bayId: String,
+        newStartMs: Long,
+        newEndMs: Long,
+        excludeBookingId: String? = null
+    ): String? {
+        val matching = bookings.find { booking ->
+            if (booking.id == excludeBookingId) return@find false
+            if (booking.facilityId != facilityId || booking.bayId != bayId) return@find false
+            if (booking.status.equals("Cancelled", ignoreCase = true) || booking.paymentStatus == "FAILED") return@find false
+
+            newStartMs < booking.endTimeMs && booking.startTimeMs < newEndMs
+        } ?: return null
+
+        return if (matching.paymentStatus == "PENDING") "Reserved" else "Booked"
     }
 
     fun createBooking(
@@ -239,9 +257,9 @@ object BookingRepository {
             customerEmail = customerEmail,
             customerPhone = customerPhone,
             bayTitle = bayTitle,
-            status = if (paymentStatus == "SUCCESSFUL") "In Progress" else "Cancelled",
+            status = if (paymentStatus == "SUCCESSFUL") "In Progress" else if (paymentStatus == "PENDING") "PENDING_PAYMENT" else "Cancelled",
             timeSlotText = "Active Slot ($durationMinutes min)",
-            slotDetailText = if (paymentStatus == "SUCCESSFUL") "Slot Active" else "Payment Failed",
+            slotDetailText = if (paymentStatus == "SUCCESSFUL") "Slot Active" else if (paymentStatus == "PENDING") "Pending Payment Hold" else "Payment Failed",
             amountValue = amountValue,
             amountFormatted = "MWK " + NumberFormat.getNumberInstance().format(amountValue),
             paymentMethod = paymentMethod,
@@ -251,7 +269,7 @@ object BookingRepository {
             timestampMs = System.currentTimeMillis()
         )
 
-        if (paymentStatus == "SUCCESSFUL") {
+        if (paymentStatus != "FAILED") {
             bookings.add(0, record)
         }
         return Result.success(record)

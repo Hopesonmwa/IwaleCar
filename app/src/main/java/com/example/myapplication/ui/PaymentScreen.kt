@@ -82,6 +82,9 @@ fun PaymentScreen(
         price = 15000,
         formattedPrice = "MWK 15,000"
     ),
+    bayId: String = "1_1",
+    startTimeMs: Long = System.currentTimeMillis() + 3600_000L,
+    endTimeMs: Long = System.currentTimeMillis() + 5400_000L,
     onBackClick: () -> Unit = {},
     onPaymentSuccess: () -> Unit = {},
     onProfileClick: () -> Unit = {},
@@ -99,20 +102,14 @@ fun PaymentScreen(
 
     val currentUser = UserRepository.getCurrentUser()
     val facility = FacilityRepository.getFacilityById("1") // Active booking facility
-    val durationMins = when {
-        tier.title.contains("10") -> 10
-        tier.title.contains("20") -> 20
-        tier.title.contains("40") -> 40
-        else -> 60
-    }
+    val durationMins = maxOf(1, ((endTimeMs - startTimeMs) / (60 * 1000L)).toInt())
+    val targetBay = facility?.bays?.find { it.id == bayId } ?: facility?.bays?.firstOrNull()
 
     fun validateAndProcessPayment() {
         errorMessage = null
 
-        // Check if facility has available bays (TC-08)
-        val availableBay = facility?.bays?.find { it.status == "Available" }
-        if (facility == null || facility.bays.isEmpty() || availableBay == null) {
-            errorMessage = "No bays are currently available at this facility."
+        if (facility == null || facility.bays.isEmpty() || targetBay == null) {
+            errorMessage = "Selected washing bay is unavailable."
             return
         }
 
@@ -125,9 +122,7 @@ fun PaymentScreen(
         }
 
         // Check Overlapping Reservation (TC-09)
-        val startTimeMs = System.currentTimeMillis()
-        val endTimeMs = startTimeMs + durationMins * 60 * 1000L
-        if (BookingRepository.hasOverlappingReservation(facility.id, availableBay.id, startTimeMs, endTimeMs)) {
+        if (BookingRepository.hasOverlappingReservation(facility.id, targetBay.id, startTimeMs, endTimeMs)) {
             errorMessage = "This bay is already reserved for the selected time slot."
             return
         }
@@ -139,17 +134,14 @@ fun PaymentScreen(
     if (isProcessingPayment) {
         LaunchedEffect(Unit) {
             delay(2500)
-            val availableBay = facility?.bays?.find { it.status == "Available" } ?: facility?.bays?.firstOrNull()
-            val startTimeMs = System.currentTimeMillis()
-
             val result = BookingRepository.createBooking(
                 facilityId = facility?.id ?: "1",
-                bayId = availableBay?.id ?: "1_1",
+                bayId = targetBay?.id ?: "1_1",
                 ownerId = facility?.ownerId ?: "owner@gmail.com",
                 customerName = currentUser.fullName,
                 customerEmail = currentUser.email,
                 customerPhone = currentUser.phoneNumber,
-                bayTitle = "${availableBay?.bayNumber ?: "Bay 01"} — ${tier.title}",
+                bayTitle = "${targetBay?.bayNumber ?: "Bay 01"} — ${tier.title}",
                 amountValue = tier.price,
                 paymentMethod = selectedProvider.title,
                 paymentStatus = "SUCCESSFUL",

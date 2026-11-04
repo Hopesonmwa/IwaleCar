@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,11 @@ fun HomeScreen(
     var currentTab by remember { mutableStateOf(NavItem.BAYS) }
 
     val currentUser = UserRepository.getCurrentUser()
+
+    // Trigger Firestore fetch on screen composition
+    LaunchedEffect(Unit) {
+        FacilityRepository.fetchApprovedFacilitiesFromFirestore()
+    }
 
     val sampleAreas = remember {
         listOf(
@@ -153,23 +159,36 @@ fun HomeScreen(
                 )
             }
 
-            // Section Header: "Nearby Car Washes"
+            // Section Title: Available Stations
             item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Nearby Car Washes",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Available Stations",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Text(
+                        text = "${filteredFacilities.size} Stations",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B)
+                    )
+                }
             }
 
+            // Empty State Handling
             if (filteredFacilities.isEmpty()) {
                 item {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
+                            .padding(vertical = 24.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -177,7 +196,7 @@ fun HomeScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp),
+                                .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -185,67 +204,51 @@ fun HomeScreen(
                                 imageVector = Icons.Outlined.Storefront,
                                 contentDescription = null,
                                 tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(48.dp)
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
 
-                            if (searchQuery.trim().isNotEmpty()) {
-                                Text(
-                                    text = "No car wash facilities found.",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "No car wash stations matched '$searchQuery'. Try searching for a different name or location.",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF64748B),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Button(
-                                    onClick = { searchQuery = "" },
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = PrimaryBlue,
-                                        contentColor = Color.White
-                                    )
-                                ) {
-                                    Text(text = "Clear Search", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            } else {
-                                Text(
-                                    text = "No car wash site available yet",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A),
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "There are currently no active express bays listed in $selectedAreaName.",
-                                    fontSize = 13.sp,
-                                    color = Color(0xFF64748B),
-                                    textAlign = TextAlign.Center
-                                )
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "No Approved Stations Found",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "There are no approved stations matching your search or location filter.",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B),
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    searchQuery = ""
+                                    selectedAreaId = "0"
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                            ) {
+                                Text(text = "Reset Filters", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             } else {
+                // Stations Cards List
                 items(filteredFacilities, key = { it.id }) { facility ->
                     CarWashCard(
                         facility = facility,
-                        onViewFacilityClick = { onFacilityClick(it) }
+                        onViewFacilityClick = { onFacilityClick(facility) }
                     )
                 }
-            }
-
-            // Bottom spacing
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
