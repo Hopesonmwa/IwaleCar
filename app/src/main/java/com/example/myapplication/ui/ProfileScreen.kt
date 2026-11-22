@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -44,7 +45,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -111,7 +111,82 @@ fun ProfileScreen(
     var successBannerMessage by remember { mutableStateOf("Profile saved successfully!") }
     var isSavingProfile by remember { mutableStateOf(false) }
 
+    // Flag tracking explicit unsaved modifications made during the current screen session
+    var isProfileModified by remember { mutableStateOf(false) }
+
+    var pendingNavigationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    fun navigateSafely(action: () -> Unit) {
+        if (isProfileModified) {
+            pendingNavigationAction = action
+        } else {
+            action()
+        }
+    }
+
     val coroutineScope = rememberCoroutineScope()
+
+    // Unsaved Changes Confirmation Modal (Only triggered when explicit modifications were made)
+    if (pendingNavigationAction != null) {
+        AlertDialog(
+            onDismissRequest = { pendingNavigationAction = null },
+            title = {
+                Text(
+                    text = "Unsaved Changes",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Text(
+                    text = "You have unsaved changes to your profile location. Would you like to save or discard your changes before leaving?",
+                    fontSize = 14.sp,
+                    color = Color(0xFF475569)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val action = pendingNavigationAction
+                        pendingNavigationAction = null
+                        val updatedUser = currentUser.copy(
+                            primaryLocation = selectedHub,
+                            phoneNumber = phoneText.removePrefix("+265 ").removePrefix("+265").trim(),
+                            email = emailText.trim(),
+                            bio = bioText.trim()
+                        )
+                        coroutineScope.launch {
+                            AuthRepository.updateUserProfile(updatedUser)
+                            currentUser = UserRepository.getCurrentUser()
+                            isProfileModified = false
+                            action?.invoke()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Save & Continue", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        val action = pendingNavigationAction
+                        pendingNavigationAction = null
+                        isProfileModified = false
+                        selectedHub = currentUser.primaryLocation
+                        action?.invoke()
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Discard", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 
     // Edit Bio Modal Dialog
     if (showEditBioDialog) {
@@ -176,6 +251,7 @@ fun ProfileScreen(
                             currentUser = UserRepository.getCurrentUser()
                             bioText = currentUser.bio
                             isSavingBio = false
+                            isProfileModified = false
                             showEditBioDialog = false
                             successBannerMessage = "Personal bio updated successfully!"
                             isSaveSuccessBannerVisible = true
@@ -316,6 +392,7 @@ fun ProfileScreen(
                             currentUser = UserRepository.getCurrentUser()
                             phoneText = currentUser.phoneNumber
                             isSavingPhone = false
+                            isProfileModified = false
                             showEditPhoneDialog = false
                             successBannerMessage = "Mobile phone number updated successfully!"
                             isSaveSuccessBannerVisible = true
@@ -385,6 +462,7 @@ fun ProfileScreen(
                             AuthRepository.updateUserProfile(updatedUser)
                             currentUser = UserRepository.getCurrentUser()
                             isSavingProfile = false
+                            isProfileModified = false
                             showSaveConfirmDialog = false
                             successBannerMessage = "Profile and location saved successfully!"
                             isSaveSuccessBannerVisible = true
@@ -427,6 +505,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -478,9 +557,9 @@ fun ProfileScreen(
                 selectedTab = NavItem.PROFILE,
                 onTabSelected = { tab ->
                     when (tab) {
-                        NavItem.BAYS -> onBaysClick()
-                        NavItem.HISTORY -> onHistoryClick()
-                        NavItem.BOOKINGS -> onBookingsClick()
+                        NavItem.BAYS -> navigateSafely(onBaysClick)
+                        NavItem.HISTORY -> navigateSafely(onHistoryClick)
+                        NavItem.BOOKINGS -> navigateSafely(onBookingsClick)
                         NavItem.PROFILE -> {}
                     }
                 }
@@ -816,7 +895,12 @@ fun ProfileScreen(
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) PrimaryBlue else Color(0xFFF0F5FA))
-                                        .clickable { selectedHub = hub }
+                                        .clickable {
+                                            if (hub.trim() != currentUser.primaryLocation.trim()) {
+                                                selectedHub = hub
+                                                isProfileModified = true
+                                            }
+                                        }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -1016,7 +1100,7 @@ fun ProfileScreen(
             // Log Out Button
             item {
                 OutlinedButton(
-                    onClick = onLogoutClick,
+                    onClick = { navigateSafely(onLogoutClick) },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.White,

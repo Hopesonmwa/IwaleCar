@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -39,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +56,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.R
+import com.example.myapplication.data.AdminNotificationRepository
 import com.example.myapplication.ui.components.AdminBottomNavigationBar
 import com.example.myapplication.ui.components.AdminNavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
@@ -64,10 +67,24 @@ fun AdminNotificationsScreen(
     onFacilitiesClick: () -> Unit = {},
     onAccountClick: () -> Unit = {}
 ) {
-    var selectedFilter by remember { mutableStateOf("All 12") }
-    var unreadCount by remember { mutableStateOf(2) }
+    var selectedFilter by remember { mutableStateOf("All") }
 
-    val filterChips = listOf("All 12", "Unread 2", "Applications", "Registrations")
+    LaunchedEffect(Unit) {
+        AdminNotificationRepository.fetchNotificationsFromFirestore()
+    }
+
+    val notificationsList = AdminNotificationRepository.getAll()
+    val unreadCount = AdminNotificationRepository.unreadCount()
+
+    val filterChips = listOf("All", "Unread", "APPLICATIONS", "REGISTRATIONS", "FACILITIES")
+
+    val filteredNotifications = notificationsList.filter { notif ->
+        when (selectedFilter) {
+            "Unread" -> notif.isUnread
+            "All" -> true
+            else -> notif.category.equals(selectedFilter, ignoreCase = true)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -75,6 +92,7 @@ fun AdminNotificationsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -94,7 +112,7 @@ fun AdminNotificationsScreen(
                                 text = "IWALE CAR ",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0284C7),
+                                color = Color(0xFF006699),
                                 letterSpacing = 0.5.sp
                             )
                             Box(
@@ -107,7 +125,7 @@ fun AdminNotificationsScreen(
                                     text = "ADMIN",
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0284C7)
+                                    color = Color(0xFF006699)
                                 )
                             }
                         }
@@ -193,11 +211,10 @@ fun AdminNotificationsScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Admin\nNotifications",
-                            fontSize = 22.sp,
+                            text = "Admin Notifications",
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A),
-                            lineHeight = 26.sp
+                            color = Color(0xFF0F172A)
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -223,13 +240,13 @@ fun AdminNotificationsScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color(0xFFEBF2FF))
-                            .clickable { unreadCount = 0 }
+                            .clickable { AdminNotificationRepository.markAllRead() }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null, tint = Color(0xFF006699), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "Mark All\nRead", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7), lineHeight = 13.sp)
+                            Text(text = "Mark All Read", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF006699))
                         }
                     }
                 }
@@ -261,94 +278,43 @@ fun AdminNotificationsScreen(
                 }
             }
 
-            // TODAY Section
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Outlined.Notifications, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "TODAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            if (filteredNotifications.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No notifications in '$selectedFilter' filter.",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
                     }
-
-                    Text(text = "4 Updates", fontSize = 12.sp, color = Color(0xFF64748B))
                 }
-            }
-
-            // Notification 1: New Facility Application
-            item {
-                AdminNotificationCard(
-                    category = "APPLICATIONS",
-                    timeAgo = "22 mins ago",
-                    isUnread = unreadCount > 0,
-                    title = "New Facility Application Submitted",
-                    body = "Silver Lake AutoSpa (Lilongwe) submitted documentation and photos for 4 self-service bays awaiting station compliance review.",
-                    chipText = "Area 47, Lilongwe",
-                    actionButtonText = "Review Application",
-                    icon = Icons.Outlined.Storefront,
-                    onActionClick = onFacilitiesClick
-                )
-            }
-
-            // Notification 2: New Car Wash Owner Registered
-            item {
-                AdminNotificationCard(
-                    category = "REGISTRATIONS",
-                    timeAgo = "1 hour ago",
-                    isUnread = unreadCount > 0,
-                    title = "New Car Wash Owner Registered",
-                    body = "Kondwani Mwale registered Capital City Wash Hub. Airtel Money merchant KYC submitted for automated disbursements.",
-                    chipText = "Airtel KYC Ready",
-                    actionButtonText = "View Owner",
-                    icon = Icons.Outlined.PersonAdd,
-                    onActionClick = { }
-                )
-            }
-
-            // Notification 3: Facility Inspection Complete
-            item {
-                AdminNotificationCard(
-                    category = "APPROVALS",
-                    timeAgo = "5 hours ago",
-                    isUnread = false,
-                    title = "Facility Inspection Complete",
-                    body = "Area 4 Express Station completed pressure certification and added 2 new high-pressure lances ready for customer booking.",
-                    chipText = "+2 Lances Configured",
-                    actionButtonText = "View Facility",
-                    icon = Icons.Outlined.Settings,
-                    onActionClick = onFacilitiesClick
-                )
-            }
-
-            // EARLIER THIS WEEK Section
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "EARLIER THIS WEEK", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                    Text(text = "2 Updates", fontSize = 12.sp, color = Color(0xFF64748B))
+            } else {
+                items(filteredNotifications, key = { it.id }) { notif ->
+                    AdminNotificationCard(
+                        category = notif.category,
+                        timeAgo = notif.timeAgo,
+                        isUnread = notif.isUnread,
+                        title = notif.title,
+                        body = notif.body,
+                        chipText = notif.chipText,
+                        actionButtonText = "View Details",
+                        icon = when (notif.category) {
+                            "REGISTRATIONS" -> Icons.Outlined.PersonAdd
+                            "FACILITIES" -> Icons.Outlined.Settings
+                            else -> Icons.Outlined.Storefront
+                        },
+                        onActionClick = onFacilitiesClick
+                    )
                 }
-            }
-
-            // Notification 4: Application Approved
-            item {
-                AdminNotificationCard(
-                    category = "APPLICATIONS",
-                    timeAgo = "Yesterday",
-                    isUnread = false,
-                    statusBadgeText = "Resolved",
-                    title = "Application Approved",
-                    body = "Chilambula Speed Wash status changed to Approved. Facility is now live and accepting customer reservations.",
-                    chipText = "Live on Customer App",
-                    actionButtonText = "Details",
-                    icon = Icons.Outlined.CheckCircle,
-                    onActionClick = { }
-                )
             }
         }
     }
@@ -390,14 +356,14 @@ private fun AdminNotificationCard(
                             .background(Color(0xFFE0F2FE)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(imageVector = icon, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(20.dp))
+                        Icon(imageVector = icon, contentDescription = null, tint = Color(0xFF006699), modifier = Modifier.size(20.dp))
                     }
 
                     Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = category, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7))
+                            Text(text = category, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF006699))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(text = "• $timeAgo", fontSize = 11.sp, color = Color(0xFF64748B))
                         }
@@ -422,7 +388,7 @@ private fun AdminNotificationCard(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF0284C7))
+                                .background(Color(0xFF006699))
                         )
                     }
                 }
@@ -444,9 +410,9 @@ private fun AdminNotificationCard(
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Outlined.LocationOn, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(12.dp))
+                        Icon(imageVector = Icons.Outlined.LocationOn, contentDescription = null, tint = Color(0xFF006699), modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = chipText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7))
+                        Text(text = chipText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF006699))
                     }
                 }
 
@@ -454,7 +420,7 @@ private fun AdminNotificationCard(
                     onClick = onActionClick,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = Color(0xFF006699),
                         contentColor = Color.White
                     ),
                     modifier = Modifier.height(38.dp)

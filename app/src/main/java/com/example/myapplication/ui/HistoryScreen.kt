@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,7 +25,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ElectricBolt
@@ -74,9 +74,10 @@ fun HistoryScreen(
     var selectedReceiptItem by remember { mutableStateOf<BookingRecord?>(null) }
 
     val currentUser = UserRepository.getCurrentUser()
-    val customerBookings = BookingRepository.getCustomerBookings(currentUser.email, selectedFilter)
+    val customerBookings = BookingRepository.getCustomerBookings(currentUser.email, "All")
 
-    val filterOptions = listOf("All", "Completed", "Cancelled")
+    // Location Filters (Requirement 6)
+    val filterOptions = listOf("All", "Lilongwe", "Blantyre", "Zomba", "Mzuzu")
 
     // Tax Invoice & Receipt Modal Pop-up
     selectedReceiptItem?.let { item ->
@@ -92,6 +93,7 @@ fun HistoryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -109,7 +111,7 @@ fun HistoryScreen(
                         text = "IWALE CAR",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0284C7),
+                        color = Color(0xFF006699),
                         letterSpacing = 0.5.sp
                     )
                 }
@@ -172,7 +174,7 @@ fun HistoryScreen(
                 }
             }
 
-            // Summary Stats Cards
+            // Summary Stats Cards (Hours Saved card removed as requested)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -185,79 +187,49 @@ fun HistoryScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(text = "Total\nWashes", fontSize = 11.sp, color = Color(0xFF64748B), lineHeight = 14.sp)
+                                Text(text = "Total Washes", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
                                 Icon(
                                     imageVector = CarWashIcons.CarWashHome,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = Color(0xFF006699),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = "${customerBookings.size}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(text = "${customerBookings.size}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
                         }
                     }
 
                     // Total Spent
-                    Card(
-                        modifier = Modifier.weight(1.2f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = "Total Spent", fontSize = 11.sp, color = Color(0xFF64748B))
-                                Icon(
-                                    imageVector = Icons.Outlined.AccountBalanceWallet,
-                                    contentDescription = null,
-                                    tint = Color(0xFF0284C7),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            val totalAmount = customerBookings.sumOf { it.amountValue }
-                            Text(text = "MWK $totalAmount", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
-                        }
-                    }
-
-                    // Hours Saved
                     Card(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(text = "Hours Saved", fontSize = 11.sp, color = Color(0xFF64748B))
+                                Text(text = "Total Spent", fontSize = 12.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
                                 Icon(
-                                    imageVector = Icons.Outlined.AccessTime,
+                                    imageVector = Icons.Outlined.AccountBalanceWallet,
                                     contentDescription = null,
-                                    tint = Color(0xFF0284C7),
+                                    tint = Color(0xFF006699),
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(text = "4.5", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(text = "hrs", fontSize = 12.sp, color = Color(0xFF64748B))
-                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val totalAmount = customerBookings.sumOf { it.amountValue }
+                            Text(text = "MWK $totalAmount", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
                         }
                     }
                 }
@@ -301,7 +273,7 @@ fun HistoryScreen(
                 }
             }
 
-            // Horizontal Filter Chips (All, Completed, Cancelled)
+            // Location Filter Chips (All, Lilongwe, Blantyre, Zomba, Mzuzu)
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -312,7 +284,7 @@ fun HistoryScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(if (isSelected) Color(0xFF0F172A) else Color(0xFFE2E8F0))
+                                .background(if (isSelected) Color(0xFF006699) else Color(0xFFE2E8F0))
                                 .clickable { selectedFilter = option }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
@@ -327,12 +299,16 @@ fun HistoryScreen(
                 }
             }
 
-            // Filtered History Items
+            // Filtered History Items by Location Filter
             val filteredHistory = customerBookings.filter { item ->
-                searchQuery.isEmpty() ||
+                val matchesLocation = selectedFilter.equals("All", ignoreCase = true) ||
+                        item.bayTitle.contains(selectedFilter, ignoreCase = true) ||
+                        item.timeSlotText.contains(selectedFilter, ignoreCase = true)
+                val matchesSearch = searchQuery.isEmpty() ||
                         item.bayTitle.contains(searchQuery, ignoreCase = true) ||
                         item.timeSlotText.contains(searchQuery, ignoreCase = true) ||
                         item.paymentMethod.contains(searchQuery, ignoreCase = true)
+                matchesLocation && matchesSearch
             }
 
             if (filteredHistory.isEmpty()) {
@@ -360,7 +336,7 @@ fun HistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "No wash history available for '$selectedFilter'",
+                                text = "No wash history available for location '$selectedFilter'",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0F172A),
@@ -421,7 +397,7 @@ private fun HistoryCardItem(
                                 else -> CarWashIcons.CarWashHome
                             },
                             contentDescription = null,
-                            tint = Color(0xFF0284C7),
+                            tint = Color(0xFF006699),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -440,7 +416,7 @@ private fun HistoryCardItem(
                             text = item.bayTitle,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0284C7)
+                            color = Color(0xFF006699)
                         )
                     }
                 }
@@ -548,8 +524,8 @@ private fun HistoryCardItem(
                 onClick = onViewReceiptClick,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFEBF2FF),
-                    contentColor = Color(0xFF0F172A)
+                    containerColor = Color(0xFF006699),
+                    contentColor = Color.White
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -671,7 +647,7 @@ fun ReceiptDialog(
                     onClick = onDismiss,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0B132B),
+                        containerColor = Color(0xFF006699),
                         contentColor = Color.White
                     ),
                     modifier = Modifier

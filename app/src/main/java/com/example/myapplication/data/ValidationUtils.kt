@@ -9,7 +9,7 @@ object ValidationUtils {
 
     fun isEmailValid(email: String): Boolean {
         val trimmed = email.trim().lowercase()
-        return trimmed.contains("@") && trimmed.contains("@gmail.com")
+        return trimmed.contains("@") && trimmed.indexOf("@") > 0 && trimmed.indexOf("@") < trimmed.length - 1
     }
 
     fun isEmailFormatValid(email: String): Boolean {

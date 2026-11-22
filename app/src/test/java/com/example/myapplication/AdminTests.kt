@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import com.example.myapplication.data.FacilityRepository
 import com.example.myapplication.data.toFacilityItemData
+import com.example.myapplication.ui.BayConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -32,12 +33,20 @@ class AdminTests {
         val approvedItem = pendingFacility!!.toFacilityItemData().copy(status = "Approved")
         FacilityRepository.saveFacility(approvedItem, pendingFacility.ownerId)
 
-        // Assert
+        // Assert status
         val updatedFacility = FacilityRepository.getFacilityById("pending_wash_1")
         assertEquals("Approved", updatedFacility?.status)
 
+        // Owner configures bays for the approved facility
+        val sampleBay = BayConfig(
+            id = "bay_p1", bayNumber = "BAY 01", serviceTitle = "Foam Wash",
+            priceText = "MWK 5,000", priceValue = 5000, durationText = "30 mins",
+            featuresDescription = "High pressure", status = "Available"
+        )
+        FacilityRepository.updateBaysForFacility("pending_wash_1", listOf(sampleBay))
+
         val publicFacilities = FacilityRepository.getApprovedCarWashFacilities()
-        assertTrue("Approved facility now appears in public bookable list",
+        assertTrue("Approved facility with configured bays appears in public bookable list",
             publicFacilities.any { it.id == "pending_wash_1" })
     }
 

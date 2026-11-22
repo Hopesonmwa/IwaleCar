@@ -10,21 +10,33 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : 'Customer';
+    }
+
     function isAdmin() {
       return isAuthenticated() &&
              (('role' in request.auth.token && request.auth.token.role in ['Administrator', 'SuperAdmin']) ||
-              ('admin' in request.auth.token && request.auth.token.admin == true));
+              ('admin' in request.auth.token && request.auth.token.admin == true) ||
+              (request.auth.token.email in ['admin@gmail.com', 'admin@email.com', 'chisomo.banda@iwalecar.mw']) ||
+              getUserRole() in ['Administrator', 'SuperAdmin']);
+    }
+
+    function isCarWashOwner() {
+      return isAuthenticated() && (getUserRole() == 'Car Wash Owner' || request.auth.token.email == 'owner@gmail.com');
     }
 
     // 1. User Profiles
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
       allow create: if isOwner(userId)
-                    && request.resource.data.keys().hasOnly(['uid', 'fullName', 'firstName', 'lastName', 'phoneNumber', 'email', 'role', 'primaryLocation', 'bio', 'createdAt'])
+                    && request.resource.data.keys().hasOnly(['uid', 'fullName', 'firstName', 'lastName', 'phoneNumber', 'email', 'role', 'requestedRole', 'primaryLocation', 'bio', 'createdAt'])
                     && request.resource.data.keys().hasAll(['uid', 'fullName', 'email', 'role', 'phoneNumber', 'primaryLocation'])
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.email == request.auth.token.email
                     && request.resource.data.role == 'Customer'
+                    && (!('requestedRole' in request.resource.data) || request.resource.data.requestedRole in ['Customer', 'Car Wash Owner'])
                     && request.resource.data.fullName is string && request.resource.data.fullName.size() <= 100
                     && (!('firstName' in request.resource.data) || (request.resource.data.firstName is string && request.resource.data.firstName.size() <= 50))
                     && (!('lastName' in request.resource.data) || (request.resource.data.lastName is string && request.resource.data.lastName.size() <= 50))
@@ -45,99 +57,126 @@ service cloud.firestore {
                     && request.resource.data.email == resource.data.email
                     && request.resource.data.role == resource.data.role
                     && request.resource.data.createdAt == resource.data.createdAt;
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+                    && request.resource.data.role in ['Car Wash Owner', 'Administrator']
+                    && (
+                      !exists(/databases/$(database)/documents/ownerApplications/$(userId)) ||
+                      get(/databases/$(database)/documents/ownerApplications/$(userId)).data.status == 'APPROVED'
+                    );
+    }
+
+    match /ownerApplications/{applicantUid} {
+      allow read: if isOwner(applicantUid) || isAdmin();
+      allow create: if isOwner(applicantUid)
+                    && request.resource.data.applicantUid == request.auth.uid
+                    && request.resource.data.applicantEmail == request.auth.token.email
+                    && request.resource.data.status == 'PENDING';
+      allow update: if (isOwner(applicantUid)
+                        && resource.data.status == 'REJECTED'
+                        && request.resource.data.applicantUid == request.auth.uid
+                        && request.resource.data.applicantEmail == request.auth.token.email
+                        && request.resource.data.status == 'PENDING')
+                    || (isAdmin()
+                        && resource.data.status == 'PENDING'
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewNotes', 'reviewedAt', 'reviewedBy'])
+                        && request.resource.data.status in ['APPROVED', 'REJECTED']);
+      allow delete: if false;
     }
 
     // 2. Facilities, Bays & Tiers
     match /facilities/{facilityId} {
       allow read: if true;
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (isCarWashOwner() && request.resource.data.ownerId == request.auth.uid);
       allow update: if isAuthenticated()
-                    && resource.data.ownerId == request.auth.uid
-                    && request.resource.data.ownerId == resource.data.ownerId
-                    && request.resource.data.status == resource.data.status
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'address', 'city', 'phone', 'openingTime', 'closingTime', 'description'])
-                    && request.resource.data.name is string && request.resource.data.name.size() <= 100
-                    && request.resource.data.address is string && request.resource.data.address.size() <= 200
-                    && request.resource.data.city is string && request.resource.data.city.size() <= 50
-                    && request.resource.data.phone is string && request.resource.data.phone.size() <= 20
-                    && request.resource.data.openingTime is string && request.resource.data.openingTime.size() <= 20
-                    && request.resource.data.closingTime is string && request.resource.data.closingTime.size() <= 20
-                    && request.resource.data.description is string && request.resource.data.description.size() <= 500;
+                    && (resource.data.ownerId == request.auth.uid || isAdmin())
+                    && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if isAdmin();
 
       match /bays/{bayId} {
         allow read: if true;
-        allow create: if isAuthenticated()
-                      && exists(/databases/$(database)/documents/facilities/$(facilityId))
-                      && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
-                      && request.resource.data.keys().hasOnly(['bayNumber', 'serviceTitle', 'priceText', 'priceValue', 'durationText', 'featuresDescription', 'status'])
-                      && request.resource.data.bayNumber is string && request.resource.data.bayNumber.size() <= 50
-                      && request.resource.data.serviceTitle is string && request.resource.data.serviceTitle.size() <= 100
-                      && request.resource.data.priceText is string && request.resource.data.priceText.size() <= 50
-                      && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
-                      && request.resource.data.durationText is string && request.resource.data.durationText.size() <= 30
-                      && request.resource.data.featuresDescription is string && request.resource.data.featuresDescription.size() <= 500
-                      && request.resource.data.status in ['Available', 'Maintenance', 'Occupied'];
-        allow update: if isAuthenticated()
-                      && exists(/databases/$(database)/documents/facilities/$(facilityId))
-                      && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bayNumber', 'serviceTitle', 'priceText', 'priceValue', 'durationText', 'featuresDescription', 'status'])
-                      && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
-                      && request.resource.data.status in ['Available', 'Maintenance', 'Occupied'];
-        allow delete: if false;
+        allow create, update, delete: if isAuthenticated()
+                      && (get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid || isAdmin());
 
         match /tiers/{tierId} {
           allow read: if true;
-          allow create: if isAuthenticated()
-                        && exists(/databases/$(database)/documents/facilities/$(facilityId))
-                        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
-                        && request.resource.data.keys().hasOnly(['title', 'description', 'priceValue', 'formattedPrice', 'durationMinutes', 'status', 'isMostPopular'])
-                        && request.resource.data.title is string && request.resource.data.title.size() <= 100
-                        && request.resource.data.description is string && request.resource.data.description.size() <= 500
-                        && request.resource.data.formattedPrice is string && request.resource.data.formattedPrice.size() <= 50
-                        && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
-                        && request.resource.data.durationMinutes is int && request.resource.data.durationMinutes > 0 && request.resource.data.durationMinutes <= 240
-                        && request.resource.data.status in ['Available', 'Maintenance', 'Occupied']
-                        && request.resource.data.isMostPopular is bool;
-          allow update: if isAuthenticated()
-                        && exists(/databases/$(database)/documents/facilities/$(facilityId))
-                        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'priceValue', 'formattedPrice', 'durationMinutes', 'status', 'isMostPopular'])
-                        && request.resource.data.priceValue is int && request.resource.data.priceValue > 0
-                        && request.resource.data.durationMinutes is int && request.resource.data.durationMinutes > 0 && request.resource.data.durationMinutes <= 240
-                        && request.resource.data.status in ['Available', 'Maintenance', 'Occupied']
-                        && request.resource.data.isMostPopular is bool;
-          allow delete: if false;
+          allow create, update, delete: if isAuthenticated()
+                        && (get(/databases/$(database)/documents/facilities/$(facilityId)).data.ownerId == request.auth.uid || isAdmin());
         }
 
         match /schedule/{document=**} {
           allow read: if true;
-          allow write: if false;
+          allow write: if isAuthenticated();
         }
       }
     }
 
-    // 3. Bookings, Requests, Guards & Audit Logs (Strict backend control)
+    // 2b. Approved & Rejected Car Wash Facilities Collections
+    match /approvedFacilities/{facilityId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated() && (isAdmin() || isCarWashOwner());
+    }
+
+    match /rejectedFacilities/{facilityId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated() && (isAdmin() || isCarWashOwner());
+    }
+
+    // 2c. Dedicated Bays Collection
+    match /bays/{bayId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated() && (isAdmin() || isCarWashOwner());
+    }
+
+    // 2c. Payments & Admin Notifications Collections
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.customerId == request.auth.uid || resource.data.customerEmail == request.auth.token.email || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.customerId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /adminNotifications/{notificationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 3. Bookings (Direct Client-Side Operations with Security Checks)
     match /bookings/{bookingId} {
-      allow create, update, delete: if false;
       allow read: if isAuthenticated() &&
                     (resource.data.customerId == request.auth.uid ||
                      resource.data.ownerId == request.auth.uid ||
+                     resource.data.customerEmail == request.auth.token.email ||
                      isAdmin());
+      allow create: if isAuthenticated() &&
+                    request.resource.data.customerId == request.auth.uid &&
+                    request.resource.data.bookingStatus in ['PENDING_PAYMENT', 'UPCOMING', 'In Progress'] &&
+                    request.resource.data.paymentStatus in ['PENDING', 'SUCCESSFUL'];
+      allow update: if isAuthenticated() &&
+                    (
+                      // Customer payment completion or extension
+                      (resource.data.customerId == request.auth.uid &&
+                       request.resource.data.amountValue >= resource.data.amountValue) ||
+                      // Facility Owner operational status changes
+                      (resource.data.ownerId == request.auth.uid || resource.data.ownerId == request.auth.token.email) ||
+                      // Administrator management
+                      isAdmin()
+                    );
+      allow delete: if isAdmin();
     }
 
+    // 4. Booking Requests (Idempotency Locks)
     match /bookingRequests/{requestId} {
-      allow read, write: if false;
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.resource.data.customerId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
+    // 5. Quarantine Slot Guards & Audit Logs
     match /quarantineSlotGuards/{guardId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if isAdmin();
     }
 
     match /quarantineAuditLogs/{logId} {
-      allow read: if isAdmin();
-      allow write: if false;
+      allow read, write: if isAdmin();
     }
   }
 }

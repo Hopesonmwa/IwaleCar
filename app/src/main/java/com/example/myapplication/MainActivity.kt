@@ -10,16 +10,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.myapplication.data.ApplicationStatus
 import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.CarWashFacility
 import com.example.myapplication.data.CarWashTier
-import com.example.myapplication.data.FirebaseServices
+import com.example.myapplication.data.OwnerApplicationRepository
+import com.example.myapplication.data.UserAccount
 import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.AdminDashboardScreen
 import com.example.myapplication.ui.AdminFacilitiesScreen
 import com.example.myapplication.ui.AdminNotificationsScreen
+import com.example.myapplication.ui.AdminOwnerApplicationsScreen
 import com.example.myapplication.ui.AdminProfileScreen
 import com.example.myapplication.ui.BookedSessionsScreen
 import com.example.myapplication.ui.BookingScreen
@@ -32,6 +36,7 @@ import com.example.myapplication.ui.ManageBaysScreen
 import com.example.myapplication.ui.NotificationsScreen
 import com.example.myapplication.ui.OwnerBookingsScreen
 import com.example.myapplication.ui.OwnerDashboardScreen
+import com.example.myapplication.ui.OwnerApplicationScreen
 import com.example.myapplication.ui.OwnerFacilitiesScreen
 import com.example.myapplication.ui.OwnerOnboardingScreen
 import com.example.myapplication.ui.OwnerRevenueScreen
@@ -41,6 +46,7 @@ import com.example.myapplication.ui.SignUpScreen
 import com.example.myapplication.ui.SplashScreen
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.google.firebase.FirebaseApp
+import kotlinx.coroutines.launch
 
 enum class Screen {
     SPLASH,
@@ -64,7 +70,27 @@ enum class Screen {
     ADMIN_FACILITIES,
     ADMIN_NOTIFICATIONS,
     ADMIN_PROFILE,
-    OWNER_ONBOARDING
+    ADMIN_APPLICATIONS,
+    OWNER_ONBOARDING,
+    OWNER_APPLICATION
+}
+
+/**
+ * Decides where a freshly authenticated user lands:
+ * administrators -> admin dashboard, approved owners -> owner dashboard,
+ * owner applicants (registered as Car Wash Owner but not yet approved) -> owner application screen,
+ * everyone else -> customer home.
+ */
+fun routeForUser(user: UserAccount?): Screen = when {
+    user == null -> Screen.HOME
+    user.email.equals("admin@gmail.com", ignoreCase = true) ||
+            user.email.equals("chisomo.banda@iwalecar.mw", ignoreCase = true) ||
+            user.role == "Administrator" ||
+            user.role == "SuperAdmin" -> Screen.ADMIN_DASHBOARD
+    user.role == "Car Wash Owner" ||
+            OwnerApplicationRepository.getApplicationFor(user.email)?.status == ApplicationStatus.APPROVED -> Screen.OWNER_DASHBOARD
+    user.requestedRole == "Car Wash Owner" -> Screen.OWNER_ONBOARDING
+    else -> Screen.HOME
 }
 
 class MainActivity : ComponentActivity() {
@@ -94,6 +120,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainAppLayout() {
+    val scope = rememberCoroutineScope()
     var currentScreen by remember { mutableStateOf(Screen.SPLASH) }
     var loginSuccessMessage by remember { mutableStateOf<String?>(null) }
     var selectedFacility by remember { mutableStateOf<CarWashFacility?>(null) }
@@ -116,16 +143,13 @@ fun MainAppLayout() {
         when (screen) {
             Screen.SPLASH -> {
                 SplashScreen {
-                    val firebaseUser = FirebaseServices.auth.currentUser
-                    val currentUser = UserRepository.getCurrentUser()
-                    if (firebaseUser != null && currentUser.email.isNotBlank()) {
-                        when (currentUser.role) {
-                            "Car Wash Owner" -> currentScreen = Screen.OWNER_DASHBOARD
-                            "Administrator", "SuperAdmin" -> currentScreen = Screen.ADMIN_DASHBOARD
-                            else -> currentScreen = Screen.HOME
+                    scope.launch {
+                        val restored = AuthRepository.restoreSession().getOrNull()
+                        currentScreen = if (restored != null && restored.email.isNotBlank()) {
+                            routeForUser(restored)
+                        } else {
+                            Screen.LOGIN
                         }
-                    } else {
-                        currentScreen = Screen.LOGIN
                     }
                 }
             }
@@ -133,11 +157,7 @@ fun MainAppLayout() {
                 LoginScreen(
                     onSignInClick = { user ->
                         loginSuccessMessage = null
-                        when (user?.role) {
-                            "Car Wash Owner" -> currentScreen = Screen.OWNER_DASHBOARD
-                            "Administrator", "SuperAdmin" -> currentScreen = Screen.ADMIN_DASHBOARD
-                            else -> currentScreen = Screen.HOME
-                        }
+                        currentScreen = routeForUser(user)
                     },
                     onCreateAccountClick = {
                         loginSuccessMessage = null
@@ -164,14 +184,14 @@ fun MainAppLayout() {
                 SignUpScreen(
                     onSignUpClick = { email ->
                         val registeredUser = UserRepository.findUser(email)
-                        if (registeredUser != null && registeredUser.requestedRole == "Car Wash Owner") {
-                            UserRepository.setCurrentUser(registeredUser)
-                            currentScreen = Screen.OWNER_ONBOARDING
-                        } else {
-                            AuthRepository.logout()
-                            loginSuccessMessage = "Account created successfully! Please sign in with your credentials."
-                            currentScreen = Screen.LOGIN
-                        }
+                        AuthRepository.logout()
+                        loginSuccessMessage =
+                            if (registeredUser?.requestedRole == "Car Wash Owner") {
+                                "Account created! Sign in to complete your Car Wash Owner application."
+                            } else {
+                                "Account created successfully! Please sign in with your credentials."
+                            }
+                        currentScreen = Screen.LOGIN
                     },
                     onSignInClick = {
                         loginSuccessMessage = null
@@ -434,6 +454,9 @@ fun MainAppLayout() {
             }
             Screen.ADMIN_DASHBOARD -> {
                 AdminDashboardScreen(
+                    onApplicationsClick = {
+                        currentScreen = Screen.ADMIN_APPLICATIONS
+                    },
                     onFacilitiesClick = {
                         currentScreen = Screen.ADMIN_FACILITIES
                     },
@@ -443,6 +466,15 @@ fun MainAppLayout() {
                     onAccountClick = {
                         currentScreen = Screen.ADMIN_PROFILE
                     }
+                )
+            }
+            Screen.ADMIN_APPLICATIONS -> {
+                AdminOwnerApplicationsScreen(
+                    onBackClick = { currentScreen = Screen.ADMIN_DASHBOARD },
+                    onDashboardClick = { currentScreen = Screen.ADMIN_DASHBOARD },
+                    onFacilitiesClick = { currentScreen = Screen.ADMIN_FACILITIES },
+                    onAlertsClick = { currentScreen = Screen.ADMIN_NOTIFICATIONS },
+                    onAccountClick = { currentScreen = Screen.ADMIN_PROFILE }
                 )
             }
             Screen.ADMIN_FACILITIES -> {
@@ -491,14 +523,31 @@ fun MainAppLayout() {
             Screen.OWNER_ONBOARDING -> {
                 OwnerOnboardingScreen(
                     onContinueToCustomerClick = {
-                        AuthRepository.logout()
-                        loginSuccessMessage = "Owner application registered. Please sign in with your credentials."
-                        currentScreen = Screen.LOGIN
+                        currentScreen = Screen.HOME
+                    },
+                    onApprovedContinueClick = {
+                        UserRepository.setCurrentUser(
+                            UserRepository.getCurrentUser().copy(role = "Car Wash Owner")
+                        )
+                        currentScreen = Screen.OWNER_DASHBOARD
                     },
                     onSignOutClick = {
                         AuthRepository.logout()
                         loginSuccessMessage = null
                         currentScreen = Screen.LOGIN
+                    },
+                    onOpenApplicationFormClick = {
+                        currentScreen = Screen.OWNER_APPLICATION
+                    }
+                )
+            }
+            Screen.OWNER_APPLICATION -> {
+                OwnerApplicationScreen(
+                    onBackClick = {
+                        currentScreen = Screen.OWNER_ONBOARDING
+                    },
+                    onSubmitted = {
+                        currentScreen = Screen.OWNER_ONBOARDING
                     }
                 )
             }

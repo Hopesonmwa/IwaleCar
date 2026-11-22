@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +80,10 @@ fun OwnerDashboardScreen(
     onProfileClick: () -> Unit = {},
     onManageBaysClick: () -> Unit = {}
 ) {
+    LaunchedEffect(Unit) {
+        BookingRepository.refreshBookingsFromFirestore()
+    }
+
     val currentUser = UserRepository.getCurrentUser()
     val ownerFacilities = FacilityRepository.getFacilitiesForOwner(currentUser.email)
     val selectedFacility = FacilityRepository.getSelectedFacilityForOwner(currentUser.email)
@@ -164,6 +170,7 @@ fun OwnerDashboardScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -249,21 +256,14 @@ fun OwnerDashboardScreen(
         ) {
             // Greeting & Active Location Picker
             item {
+                val firstName = currentUser.fullName.trim().substringBefore(" ").ifBlank { "Owner" }.lowercase().replaceFirstChar { it.uppercase() }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Column {
-                        Text(
-                            text = "Hello,",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Text(
-                            text = currentUser.greetingName,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF0F172A)
-                        )
-                    }
+                    Text(
+                        text = "Hello, $firstName",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
 
                     Box {
                         Row(

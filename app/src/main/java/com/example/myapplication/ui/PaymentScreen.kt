@@ -1,7 +1,5 @@
 package com.example.myapplication.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,6 +58,8 @@ import com.example.myapplication.data.BadgeType
 import com.example.myapplication.data.BookingRepository
 import com.example.myapplication.data.CarWashTier
 import com.example.myapplication.data.FacilityRepository
+import com.example.myapplication.data.FirebaseServices
+import com.example.myapplication.data.NetworkUtils
 import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.components.BottomNavigationBar
 import com.example.myapplication.ui.components.CarWashBayPlaceholder
@@ -66,12 +68,15 @@ import com.example.myapplication.ui.components.NavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.delay
+import java.util.UUID
 
 enum class MobilePaymentProvider(val title: String) {
     AIRTEL_MONEY("Airtel Money"),
     TNM_MPAMBA("TNM Mpamba"),
     IWALE_WALLET("Iwale Wallet")
 }
+
+private var simulatedPaymentAttemptCounter = 0
 
 @Composable
 fun PaymentScreen(
@@ -92,6 +97,7 @@ fun PaymentScreen(
     onHistoryClick: () -> Unit = {},
     onBookingsClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     var selectedProvider by remember { mutableStateOf(MobilePaymentProvider.AIRTEL_MONEY) }
     var airtelPhoneNumber by remember { mutableStateOf("991428903") }
     var tnmPhoneNumber by remember { mutableStateOf("881428903") }
@@ -108,12 +114,18 @@ fun PaymentScreen(
     fun validateAndProcessPayment() {
         errorMessage = null
 
+        // 1. Internet connection requirement check
+        if (!NetworkUtils.isNetworkAvailable(context)) {
+            errorMessage = "No internet connection. Payment completion requires an active internet connection."
+            return
+        }
+
         if (facility == null || facility.bays.isEmpty() || targetBay == null) {
             errorMessage = "Selected washing bay is unavailable."
             return
         }
 
-        // Check Phone Number Length (TC-10)
+        // Check Phone Number Length
         val activePhone = if (selectedProvider == MobilePaymentProvider.AIRTEL_MONEY) airtelPhoneNumber else tnmPhoneNumber
         val cleanPhone = activePhone.replace(" ", "").removePrefix("+265")
         if (cleanPhone.length != 9 || !cleanPhone.all { it.isDigit() }) {
@@ -121,7 +133,7 @@ fun PaymentScreen(
             return
         }
 
-        // Check Overlapping Reservation (TC-09)
+        // Check Overlapping Reservation
         if (BookingRepository.hasOverlappingReservation(facility.id, targetBay.id, startTimeMs, endTimeMs)) {
             errorMessage = "This bay is already reserved for the selected time slot."
             return
@@ -130,34 +142,212 @@ fun PaymentScreen(
         isProcessingPayment = true
     }
 
-    // Simulated USSD Processing Timer (TC-07, TC-10, TC-11)
+    // Success Pop-Up Overlay Dialog (Requirement 3)
+    if (isPaymentSuccess) {
+        Dialog(onDismissRequest = { onPaymentSuccess() }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFDCFCE7)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Payment Successful",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Text(
+                        text = "Your payment was a success. You're session has successfully been booked",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Button(
+                        onClick = onPaymentSuccess,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text(text = "View Booked Session", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+
+    // Failure Pop-Up Overlay Dialog (Requirement 3)
+    if (errorMessage != null && !isProcessingPayment && !isPaymentSuccess) {
+        Dialog(onDismissRequest = { errorMessage = null }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFEE2E2)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFDC2626),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Payment Failed",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+
+                    Text(
+                        text = "The payment process run into an error please try again",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF0F172A),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Button(
+                        onClick = { errorMessage = null },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text(text = "Try Again", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+
+    // Simulated USSD Processing with 1 among 3 payments successful rule & Firestore payment log
     if (isProcessingPayment) {
         LaunchedEffect(Unit) {
-            delay(2500)
-            val result = BookingRepository.createBooking(
-                facilityId = facility?.id ?: "1",
-                bayId = targetBay?.id ?: "1_1",
-                ownerId = facility?.ownerId ?: "owner@gmail.com",
-                customerName = currentUser.fullName,
-                customerEmail = currentUser.email,
-                customerPhone = currentUser.phoneNumber,
-                bayTitle = "${targetBay?.bayNumber ?: "Bay 01"} — ${tier.title}",
-                amountValue = tier.price,
-                paymentMethod = selectedProvider.title,
-                paymentStatus = "SUCCESSFUL",
-                durationMinutes = durationMins,
-                startTimeMs = startTimeMs
-            )
+            delay(2200)
 
-            isProcessingPayment = false
-            if (result.isSuccess) {
+            simulatedPaymentAttemptCounter++
+            val currentAttemptNumber = simulatedPaymentAttemptCounter
+            // 1 among 3 payments successful rule: attempt 1 is successful, attempts 2 & 3 fail
+            val isSuccessSimulation = (currentAttemptNumber % 3 == 1)
+
+            val activePhone = if (selectedProvider == MobilePaymentProvider.AIRTEL_MONEY) airtelPhoneNumber else tnmPhoneNumber
+            val paymentId = "PAY_${UUID.randomUUID()}"
+
+            if (isSuccessSimulation) {
+                val result = BookingRepository.createBooking(
+                    facilityId = facility?.id ?: "1",
+                    bayId = targetBay?.id ?: "1_1",
+                    ownerId = facility?.ownerId ?: "owner@gmail.com",
+                    customerName = currentUser.fullName,
+                    customerEmail = currentUser.email,
+                    customerPhone = currentUser.phoneNumber,
+                    bayTitle = "${targetBay?.bayNumber ?: "Bay 01"} — ${tier.title}",
+                    amountValue = tier.price,
+                    paymentMethod = selectedProvider.title,
+                    paymentStatus = "SUCCESSFUL",
+                    durationMinutes = durationMins,
+                    startTimeMs = startTimeMs
+                )
+
                 val record = result.getOrNull()
                 bookingReferenceText = record?.bookingReference ?: "IW-8924"
+
+                // Save SUCCESSFUL payment record to Firestore collection "payments"
+                try {
+                    val customerUid = try { FirebaseServices.auth.currentUser?.uid ?: "" } catch (e: Throwable) { "" }
+                    val paymentRecord = hashMapOf<String, Any>(
+                        "paymentId" to paymentId,
+                        "bookingId" to (record?.id ?: "BK-101"),
+                        "bookingReference" to bookingReferenceText,
+                        "facilityId" to (facility?.id ?: "1"),
+                        "customerId" to customerUid,
+                        "customerEmail" to currentUser.email,
+                        "customerName" to currentUser.fullName,
+                        "amountValue" to tier.price,
+                        "amountFormatted" to tier.formattedPrice,
+                        "paymentMethod" to selectedProvider.title,
+                        "phoneNumber" to activePhone,
+                        "status" to "SUCCESSFUL",
+                        "failureReason" to "",
+                        "simulationAttempt" to currentAttemptNumber,
+                        "timestampMs" to System.currentTimeMillis()
+                    )
+                    FirebaseServices.db.collection("payments").document(paymentId).set(paymentRecord)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                isProcessingPayment = false
                 isPaymentSuccess = true
-                delay(1500)
-                onPaymentSuccess()
             } else {
-                errorMessage = result.exceptionOrNull()?.message ?: "Payment processing failed. Temporary hold released."
+                // Save FAILED payment record to Firestore collection "payments"
+                val failureMessage = "The payment process run into an error please try again"
+                try {
+                    val customerUid = try { FirebaseServices.auth.currentUser?.uid ?: "" } catch (e: Throwable) { "" }
+                    val paymentRecord = hashMapOf<String, Any>(
+                        "paymentId" to paymentId,
+                        "bookingId" to "BK-FAILED",
+                        "bookingReference" to "IW-FAILED",
+                        "facilityId" to (facility?.id ?: "1"),
+                        "customerId" to customerUid,
+                        "customerEmail" to currentUser.email,
+                        "customerName" to currentUser.fullName,
+                        "amountValue" to tier.price,
+                        "amountFormatted" to tier.formattedPrice,
+                        "paymentMethod" to selectedProvider.title,
+                        "phoneNumber" to activePhone,
+                        "status" to "FAILED",
+                        "failureReason" to failureMessage,
+                        "simulationAttempt" to currentAttemptNumber,
+                        "timestampMs" to System.currentTimeMillis()
+                    )
+                    FirebaseServices.db.collection("payments").document(paymentId).set(paymentRecord)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                isProcessingPayment = false
+                errorMessage = failureMessage
             }
         }
 
@@ -209,6 +399,7 @@ fun PaymentScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -272,77 +463,6 @@ fun PaymentScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Error Message Banner
-            item {
-                AnimatedVisibility(visible = errorMessage != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ErrorOutline,
-                                contentDescription = null,
-                                tint = Color(0xFFDC2626),
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = errorMessage ?: "",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF991B1B)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Success Message Banner (TC-07)
-            item {
-                AnimatedVisibility(visible = isPaymentSuccess) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFDCFCE7))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = Color(0xFF16A34A),
-                                modifier = Modifier.size(32.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Reservation Confirmed!",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF14532D)
-                                )
-
-                                Text(
-                                    text = "Booking Reference: $bookingReferenceText. Your bay has been unlocked for ${tier.title}.",
-                                    fontSize = 13.sp,
-                                    color = Color(0xFF166534)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // Facility & Order Summary Card
             item {
                 Card(
@@ -667,7 +787,7 @@ fun PaymentScreen(
                 }
             }
 
-            // Pay Button
+            // Pay Button (Unified Brand Blue Color)
             item {
                 Button(
                     onClick = { validateAndProcessPayment() },

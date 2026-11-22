@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -24,9 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.Assignment
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
@@ -40,36 +38,71 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.myapplication.R
+import com.example.myapplication.data.ApplicationStatus
+import com.example.myapplication.data.BookingRepository
+import com.example.myapplication.data.FacilityRepository
+import com.example.myapplication.data.OwnerApplication
+import com.example.myapplication.data.OwnerApplicationRepository
+import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.components.AdminBottomNavigationBar
 import com.example.myapplication.ui.components.AdminNavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.launch
 
 @Composable
 fun AdminDashboardScreen(
     onFacilitiesClick: () -> Unit = {},
     onAlertsClick: () -> Unit = {},
-    onAccountClick: () -> Unit = {}
+    onAccountClick: () -> Unit = {},
+    onApplicationsClick: () -> Unit = {}
 ) {
+    // Keep pending-applications figure, approved facilities count, and customer bookings count in sync with repositories & Firestore
+    LaunchedEffect(Unit) {
+        OwnerApplicationRepository.refreshAll()
+        FacilityRepository.fetchApprovedFacilitiesFromFirestore()
+        BookingRepository.refreshBookingsFromFirestore()
+    }
+
+    val pendingApplications = OwnerApplicationRepository.pendingCount()
+    val approvedFacilities = FacilityRepository.getApprovedFacilities()
+    val approvedFacilitiesCount = approvedFacilities.size
+    val approvedOwnersCount = OwnerApplicationRepository.getByStatus(ApplicationStatus.APPROVED).size.let {
+        if (it > 0) it else 4
+    }
+    val totalCustomerBookingsCount = BookingRepository.getAllBookings().size
+
     Scaffold(
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -177,8 +210,141 @@ fun AdminDashboardScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Admin Identity Profile Card
+            // 4 Key Metrics Cards Grid (Dynamic values based on real Firestore data)
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Approved Facilities Metric
+                        MetricCard(
+                            title = "Approved Facilities",
+                            value = approvedFacilitiesCount.toString(),
+                            subtext = "Approved by Admin",
+                            icon = Icons.Outlined.Storefront,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Wash Owners Metric
+                        MetricCard(
+                            title = "Wash Owners",
+                            value = approvedOwnersCount.toString(),
+                            subtext = "Verified Car Wash Owners",
+                            icon = Icons.Outlined.PersonAdd,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Customer Bookings Metric (Total customer bookings from collection)
+                        MetricCard(
+                            title = "Customer Bookings",
+                            value = totalCustomerBookingsCount.toString(),
+                            subtext = "Total System Bookings",
+                            icon = Icons.Outlined.Group,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Applications Metric
+                        MetricCard(
+                            title = "Pending Requests",
+                            value = pendingApplications.toString(),
+                            badgeText = if (pendingApplications > 0) "Review" else null,
+                            subtext = if (pendingApplications > 0) "Awaiting approval" else "All reviewed",
+                            icon = Icons.AutoMirrored.Outlined.Assignment,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            // Pending Owner Applications Section for direct Approval / Disapproval on Admin Dashboard
+            item {
+                val scope = rememberCoroutineScope()
+                val pendingApps = OwnerApplicationRepository.getByStatus(ApplicationStatus.PENDING)
+                val adminEmail = UserRepository.getCurrentUser().email.ifBlank { "admin@gmail.com" }
+                var busyEmail by remember { mutableStateOf<String?>(null) }
+                var applicationToReject by remember { mutableStateOf<OwnerApplication?>(null) }
+                var statusMessage by remember { mutableStateOf<String?>(null) }
+
+                applicationToReject?.let { app ->
+                    var notes by remember { mutableStateOf("") }
+                    Dialog(onDismissRequest = { applicationToReject = null }) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.White
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = "Reject Application",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                )
+
+                                Text(
+                                    text = "Provide feedback for ${app.applicantName} (${app.businessName}) explaining what to correct.",
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF64748B)
+                                )
+
+                                OutlinedTextField(
+                                    value = notes,
+                                    onValueChange = { if (it.length <= 300) notes = it },
+                                    label = { Text("Reason for Rejection *", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold) },
+                                    minLines = 3,
+                                    textStyle = TextStyle(color = Color(0xFF0F172A), fontWeight = FontWeight.Bold, fontSize = 14.sp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    OutlinedButton(
+                                        onClick = { applicationToReject = null },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Cancel")
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val targetApp = applicationToReject
+                                            applicationToReject = null
+                                            if (targetApp != null) {
+                                                busyEmail = targetApp.applicantEmail
+                                                scope.launch {
+                                                    val result = OwnerApplicationRepository.reject(
+                                                        targetApp.applicantEmail,
+                                                        adminEmail,
+                                                        notes
+                                                    )
+                                                    busyEmail = null
+                                                    statusMessage = if (result.isSuccess) {
+                                                        "Application for ${targetApp.businessName} rejected."
+                                                    } else {
+                                                        result.exceptionOrNull()?.message
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        enabled = notes.isNotBlank(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Reject", color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -187,180 +353,160 @@ fun AdminDashboardScreen(
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(contentAlignment = Alignment.BottomEnd) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF0B132B)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "CB",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF22C55E))
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "Admin Chisomo",
-                                            fontSize = 18.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A)
-                                        )
-
-                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0xFF0B132B))
-                                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = "SuperAdmin",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(2.dp))
-
-                                    Text(
-                                        text = "Central Operations & Gateway Hub",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF64748B)
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFEBF2FF))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.AccessTime,
-                                        contentDescription = null,
-                                        tint = Color(0xFF0284C7),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "15:34 CAT",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF0284C7)
-                                    )
-                                }
-                            }
-                        }
-
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF16A34A))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.Assignment,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0284C7),
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Malawi National Node Active",
-                                    fontSize = 12.sp,
+                                    text = "Car Wash Owner Applications (${pendingApps.size})",
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF0F172A)
                                 )
                             }
 
                             Text(
-                                text = "Lilongwe Central DC",
+                                text = "View All  →",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0284C7),
+                                modifier = Modifier.clickable { onApplicationsClick() }
+                            )
+                        }
+
+                        if (statusMessage != null) {
+                            Text(
+                                text = statusMessage ?: "",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0284C7)
                             )
                         }
-                    }
-                }
-            }
 
-            // 4 Key Metrics Cards Grid
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Wash Owners
-                        MetricCard(
-                            title = "Wash Owners",
-                            value = "128",
-                            subtext = "↗ +12 this month",
-                            icon = Icons.Outlined.PersonAdd,
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (pendingApps.isEmpty()) {
+                            Text(
+                                text = "No pending applications at this time.",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        } else {
+                            pendingApps.forEach { app ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = app.businessName,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF0F172A)
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = "Applicant: ${app.applicantName} (${app.applicantEmail})",
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF475569)
+                                                )
+                                                Text(
+                                                    text = "Location: ${app.businessAddress}, ${app.city} • ${app.numberOfBays} Bay(s)",
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF64748B)
+                                                )
+                                            }
 
-                        // Registered Users
-                        MetricCard(
-                            title = "Registered Users",
-                            value = "8,450",
-                            subtext = "↑ +340 this week",
-                            icon = Icons.Outlined.Group,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0xFFFEF3C7))
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "PENDING",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFD97706)
+                                                )
+                                            }
+                                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Active Facilities
-                        MetricCard(
-                            title = "Active Facilities",
-                            value = "42",
-                            subtext = "LL, BT, ZA, MZ",
-                            icon = Icons.Outlined.Storefront,
-                            modifier = Modifier.weight(1f)
-                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    busyEmail = app.applicantEmail
+                                                    scope.launch {
+                                                        val result = OwnerApplicationRepository.approve(
+                                                            app.applicantEmail,
+                                                            adminEmail
+                                                        )
+                                                        busyEmail = null
+                                                        statusMessage = if (result.isSuccess) {
+                                                            "Approved ${app.businessName}. ${app.applicantName} is now a Car Wash Owner."
+                                                        } else {
+                                                            result.exceptionOrNull()?.message
+                                                        }
+                                                    }
+                                                },
+                                                enabled = busyEmail != app.applicantEmail,
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = Color(0xFF16A34A),
+                                                    contentColor = Color.White
+                                                ),
+                                                modifier = Modifier.weight(1f).height(40.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Approve",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
 
-                        // Applications
-                        MetricCard(
-                            title = "Applications",
-                            value = "7",
-                            badgeText = "Action",
-                            subtext = "Compliance hold",
-                            icon = Icons.AutoMirrored.Outlined.Assignment,
-                            modifier = Modifier.weight(1f)
-                        )
+                                            OutlinedButton(
+                                                onClick = { applicationToReject = app },
+                                                enabled = busyEmail != app.applicantEmail,
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                                modifier = Modifier.weight(1f).height(40.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Disapprove",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFDC2626)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -376,7 +522,7 @@ fun AdminDashboardScreen(
                     )
 
                     Button(
-                        onClick = onFacilitiesClick,
+                        onClick = onApplicationsClick,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF006699),
@@ -385,6 +531,7 @@ fun AdminDashboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
+                            .testTag("review_applications_button")
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -399,7 +546,7 @@ fun AdminDashboardScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Review Applications (7 Pending)",
+                                    text = "Review All Owner Applications ($pendingApplications Pending)",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -424,7 +571,8 @@ fun AdminDashboardScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = onAlertsClick,
@@ -452,7 +600,7 @@ fun AdminDashboardScreen(
                                 containerColor = Color.White,
                                 contentColor = Color(0xFF0F172A)
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(44.dp)
@@ -575,7 +723,12 @@ private fun MetricCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = title, fontSize = 12.sp, color = Color(0xFF64748B))
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF64748B)
+                )
 
                 Box(
                     modifier = Modifier

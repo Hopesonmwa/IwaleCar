@@ -1,6 +1,9 @@
 package com.example.myapplication.data
 
 import androidx.compose.runtime.mutableStateListOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.util.Calendar
 import java.util.Locale
@@ -30,6 +33,7 @@ data class BookingRecord(
 )
 
 object BookingRepository {
+    private const val BOOKINGS_COLLECTION = "bookings"
     private val timeZone = TimeZone.getTimeZone("Africa/Blantyre")
     private val notifiedSessionIds = mutableSetOf<String>()
 
@@ -150,8 +154,79 @@ object BookingRepository {
         notifiedSessionIds.clear()
     }
 
+    suspend fun refreshBookingsFromFirestore(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = FirebaseServices.db.collection(BOOKINGS_COLLECTION).get().await()
+            val fetchedList = mutableListOf<BookingRecord>()
+            for (doc in snapshot.documents) {
+                val id = doc.getString("bookingId") ?: doc.id
+                val bookingReference = doc.getString("bookingReference") ?: "IW-1000"
+                val facilityId = doc.getString("facilityId") ?: "1"
+                val bayId = doc.getString("bayId") ?: "1_1"
+                val ownerId = doc.getString("ownerId") ?: "owner@gmail.com"
+                val customerName = doc.getString("customerName") ?: "Customer"
+                val customerEmail = doc.getString("customerEmail") ?: ""
+                val customerPhone = doc.getString("customerPhone") ?: ""
+                val bayTitle = doc.getString("bayTitle") ?: "Bay 01"
+                val status = doc.getString("bookingStatus") ?: "In Progress"
+                val timeSlotText = doc.getString("timeSlotText") ?: "Active Slot"
+                val slotDetailText = doc.getString("slotDetailText") ?: "Slot Active"
+                val amountValue = doc.getLong("amountValue")?.toInt() ?: 15000
+                val amountFormatted = doc.getString("amountFormatted") ?: "MWK 15,000"
+                val paymentMethod = doc.getString("paymentMethod") ?: "Airtel Money"
+                val paymentStatus = doc.getString("paymentStatus") ?: "SUCCESSFUL"
+                val startTimeMs = doc.getLong("startTimeMs") ?: System.currentTimeMillis()
+                val endTimeMs = doc.getLong("endTimeMs") ?: (System.currentTimeMillis() + 1800000L)
+                val timestampMs = doc.getLong("timestampMs") ?: System.currentTimeMillis()
+
+                fetchedList.add(
+                    BookingRecord(
+                        id = id,
+                        bookingReference = bookingReference,
+                        facilityId = facilityId,
+                        bayId = bayId,
+                        ownerId = ownerId,
+                        customerName = customerName,
+                        customerEmail = customerEmail,
+                        customerPhone = customerPhone,
+                        bayTitle = bayTitle,
+                        status = status,
+                        timeSlotText = timeSlotText,
+                        slotDetailText = slotDetailText,
+                        amountValue = amountValue,
+                        amountFormatted = amountFormatted,
+                        paymentMethod = paymentMethod,
+                        paymentStatus = paymentStatus,
+                        startTimeMs = startTimeMs,
+                        endTimeMs = endTimeMs,
+                        timestampMs = timestampMs
+                    )
+                )
+            }
+
+            if (fetchedList.isNotEmpty()) {
+                for (fetched in fetchedList) {
+                    val index = bookings.indexOfFirst { it.id == fetched.id }
+                    if (index >= 0) {
+                        bookings[index] = fetched
+                    } else {
+                        bookings.add(0, fetched)
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun addBookingRecord(record: BookingRecord) {
-        bookings.add(0, record)
+        val existingIndex = bookings.indexOfFirst { it.id == record.id }
+        if (existingIndex >= 0) {
+            bookings[existingIndex] = record
+        } else {
+            bookings.add(0, record)
+        }
     }
 
     private fun isSameDayInMalawi(timestamp1: Long, timestamp2: Long): Boolean {
@@ -270,7 +345,37 @@ object BookingRepository {
         )
 
         if (paymentStatus != "FAILED") {
-            bookings.add(0, record)
+            addBookingRecord(record)
+
+            // Asynchronously persist customer booking to Firestore collection "bookings"
+            try {
+                val customerUid = try { FirebaseServices.auth.currentUser?.uid ?: "" } catch (e: Throwable) { "" }
+                val bookingMap = hashMapOf(
+                    "bookingId" to record.id,
+                    "bookingReference" to record.bookingReference,
+                    "facilityId" to record.facilityId,
+                    "bayId" to record.bayId,
+                    "ownerId" to record.ownerId,
+                    "customerId" to customerUid,
+                    "customerName" to record.customerName,
+                    "customerEmail" to record.customerEmail,
+                    "customerPhone" to record.customerPhone,
+                    "bayTitle" to record.bayTitle,
+                    "bookingStatus" to record.status,
+                    "paymentStatus" to record.paymentStatus,
+                    "amountValue" to record.amountValue,
+                    "amountFormatted" to record.amountFormatted,
+                    "paymentMethod" to record.paymentMethod,
+                    "timeSlotText" to record.timeSlotText,
+                    "slotDetailText" to record.slotDetailText,
+                    "startTimeMs" to record.startTimeMs,
+                    "endTimeMs" to record.endTimeMs,
+                    "timestampMs" to record.timestampMs
+                )
+                FirebaseServices.db.collection(BOOKINGS_COLLECTION).document(record.id).set(bookingMap)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
         return Result.success(record)
     }

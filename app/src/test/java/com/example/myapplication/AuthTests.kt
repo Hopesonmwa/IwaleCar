@@ -71,21 +71,20 @@ class AuthTests {
     }
 
     /**
-     * AUTH_SIGNUP_003 | Negative
-     * Steps: Enter non-Gmail address.
-     * Expected: Registration blocked; email format flagged invalid (@gmail.com required); no account created.
+     * AUTH_SIGNUP_003 | Positive
+     * Steps: Enter valid non-Gmail address containing '@'.
+     * Expected: Registration allowed as long as email contains '@'.
      */
     @Test
-    fun AUTH_SIGNUP_003_reject_non_gmail_email() {
+    fun AUTH_SIGNUP_003_accept_non_gmail_email() {
         // Arrange
         val yahooEmail = "hopeson@yahoo.com"
 
         // Act
-        val isGmailValid = ValidationUtils.isEmailValid(yahooEmail)
-        assertFalse("Non-gmail email must be rejected", isGmailValid)
+        val isEmailValid = ValidationUtils.isEmailValid(yahooEmail)
 
         // Assert
-        assertNull("No account created for non-gmail address", UserRepository.findUser(yahooEmail))
+        assertTrue("Email with '@' symbol must be accepted", isEmailValid)
     }
 
     /**

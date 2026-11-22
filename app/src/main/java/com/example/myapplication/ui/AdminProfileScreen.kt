@@ -1,5 +1,6 @@
 package com.example.myapplication.ui
 
+import com.example.myapplication.data.UserRepository
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -210,7 +211,7 @@ fun AdminProfileScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "CB",
+                                    text = "A",
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -237,7 +238,7 @@ fun AdminProfileScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Text(
-                            text = "Chisomo Banda",
+                            text = "Admin",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF0F172A)
@@ -246,7 +247,7 @@ fun AdminProfileScreen(
                         Spacer(modifier = Modifier.height(2.dp))
 
                         Text(
-                            text = "chisomo.banda@iwalecar.mw",
+                            text = UserRepository.getCurrentUser().email,
                             fontSize = 13.sp,
                             color = Color(0xFF64748B)
                         )
@@ -493,7 +494,7 @@ fun AdminProfileScreen(
                         onClick = onLogoutClick,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFDC2626),
+                            containerColor = Color(0xFF006699),
                             contentColor = Color.White
                         ),
                         modifier = Modifier

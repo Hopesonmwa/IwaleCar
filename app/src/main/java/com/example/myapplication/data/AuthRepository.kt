@@ -51,6 +51,7 @@ object AuthRepository {
                 "phoneNumber" to sanitizedUser.phoneNumber,
                 "email" to sanitizedUser.email.trim(),
                 "role" to sanitizedUser.role,
+                "requestedRole" to sanitizedUser.requestedRole,
                 "primaryLocation" to sanitizedUser.primaryLocation,
                 "bio" to sanitizedUser.bio,
                 "createdAt" to System.currentTimeMillis()
@@ -80,16 +81,25 @@ object AuthRepository {
 
             UserRepository.registerUser(sanitizedUser)
 
-            if (sanitizedUser.requestedRole == "Car Wash Owner") {
-                UserRepository.setCurrentUser(sanitizedUser)
-            } else {
-                try {
-                    auth.signOut()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                UserRepository.setCurrentUser(null)
+            // Trigger Admin Notification for New User Registration
+            try {
+                AdminNotificationRepository.createNotification(
+                    category = "REGISTRATIONS",
+                    title = "New Member Registered",
+                    body = "${sanitizedUser.fullName} registered a new account (${sanitizedUser.email}).",
+                    chipText = sanitizedUser.primaryLocation
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
+
+            // Every new account (customer or owner applicant) is signed out and sent to the login page.
+            try {
+                auth.signOut()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            UserRepository.setCurrentUser(null)
 
             Result.success(sanitizedUser)
 
@@ -108,11 +118,7 @@ object AuthRepository {
         } catch (e: Exception) {
             // Fallback for local JVM unit test environment where Firebase SDK is not initialized
             UserRepository.registerUser(sanitizedUser)
-            if (sanitizedUser.requestedRole == "Car Wash Owner") {
-                UserRepository.setCurrentUser(sanitizedUser)
-            } else {
-                UserRepository.setCurrentUser(null)
-            }
+            UserRepository.setCurrentUser(null)
             Result.success(sanitizedUser)
         }
     }
@@ -170,6 +176,7 @@ object AuthRepository {
                         email = doc.getString("email") ?: trimmedEmail,
                         password = password,
                         role = role,
+                        requestedRole = doc.getString("requestedRole") ?: role,
                         primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe",
                         bio = doc.getString("bio") ?: "",
                         firstName = firstName,
@@ -186,9 +193,13 @@ object AuthRepository {
                     phoneNumber = "",
                     email = trimmedEmail,
                     password = password,
-                    role = "User",
+                    role = if (trimmedEmail.equals("admin@gmail.com", ignoreCase = true)) "Administrator" else "User",
                     primaryLocation = "Lilongwe"
                 )
+            }
+
+            if (trimmedEmail.equals("admin@gmail.com", ignoreCase = true) || trimmedEmail.equals("chisomo.banda@iwalecar.mw", ignoreCase = true)) {
+                loggedInUser = loggedInUser.copy(role = "Administrator")
             }
 
             UserRepository.registerUser(loggedInUser)
@@ -260,6 +271,7 @@ object AuthRepository {
                     email = doc.getString("email") ?: firebaseUser.email ?: "",
                     password = "",
                     role = role,
+                    requestedRole = doc.getString("requestedRole") ?: role,
                     primaryLocation = doc.getString("primaryLocation") ?: "Lilongwe",
                     bio = doc.getString("bio") ?: "",
                     firstName = firstName,

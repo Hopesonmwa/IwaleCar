@@ -84,9 +84,26 @@ class OwnerTests {
     fun OWNER_SETUP_001_first_login_setup_prompt() {
         // Arrange
         val newOwnerEmail = "owner.new@gmail.com"
-        val selectedFacility = FacilityRepository.getSelectedFacilityForOwner(newOwnerEmail)
+        val emptyFacility = FacilityData(
+            id = "fac_new_owner_0",
+            name = "New Owner Wash",
+            area = "Zomba",
+            address = "Main Location",
+            city = "Zomba",
+            phone = "995555666",
+            bayCount = 0,
+            openingTime = "06:30 AM",
+            closingTime = "08:00 PM",
+            description = "New facility",
+            status = "Approved",
+            bays = emptyList(),
+            ownerId = newOwnerEmail
+        )
+        FacilityRepository.saveFacilityData(emptyFacility)
+        FacilityRepository.setSelectedFacilityId("fac_new_owner_0")
 
         // Act
+        val selectedFacility = FacilityRepository.getSelectedFacilityForOwner(newOwnerEmail)
         assertNotNull("Selected facility exists", selectedFacility)
         val isSetupComplete = FacilityRepository.isFacilitySetupComplete(selectedFacility!!.id)
 
@@ -103,7 +120,23 @@ class OwnerTests {
     fun OWNER_SETUP_002_dismiss_setup_prompt_temporarily() {
         // Arrange
         val newOwnerEmail = "owner.new@gmail.com"
-        val selectedFacility = FacilityRepository.getSelectedFacilityForOwner(newOwnerEmail)
+        val emptyFacility = FacilityData(
+            id = "fac_new_owner_0",
+            name = "New Owner Wash",
+            area = "Zomba",
+            address = "Main Location",
+            city = "Zomba",
+            phone = "995555666",
+            bayCount = 0,
+            openingTime = "06:30 AM",
+            closingTime = "08:00 PM",
+            description = "New facility",
+            status = "Approved",
+            bays = emptyList(),
+            ownerId = newOwnerEmail
+        )
+        FacilityRepository.saveFacilityData(emptyFacility)
+        FacilityRepository.setSelectedFacilityId("fac_new_owner_0")
 
         // Act
         var isDismissedThisSession = true // Dismissed for session 1
@@ -111,6 +144,7 @@ class OwnerTests {
 
         // Next session login
         isDismissedThisSession = false
+        val selectedFacility = FacilityRepository.getSelectedFacilityForOwner(newOwnerEmail)
         val isSetupComplete = FacilityRepository.isFacilitySetupComplete(selectedFacility!!.id)
 
         // Assert

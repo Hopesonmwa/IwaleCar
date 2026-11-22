@@ -34,145 +34,38 @@ data class FacilityData(
 
 object FacilityRepository {
 
+    private const val APPROVED_FACILITIES_COLLECTION = "approvedFacilities"
+    private const val REJECTED_FACILITIES_COLLECTION = "rejectedFacilities"
+    private const val FACILITIES_COLLECTION = "facilities"
+    private const val BAYS_COLLECTION = "bays"
+
     private val db: FirebaseFirestore get() = FirebaseServices.db
 
-    private val defaultArea4Bays = listOf(
-        BayConfig(id = "1_1", bayNumber = "BAY 01", serviceTitle = "Foam Cannon Express", priceText = "MWK 5,000", priceValue = 5000, durationText = "10 mins", featuresDescription = "Foam lance, wheel blast & spot rinse", status = "Available"),
-        BayConfig(id = "1_2", bayNumber = "BAY 02", serviceTitle = "High-Pressure Wash & Foam", priceText = "MWK 10,000", priceValue = 10000, durationText = "20 mins", featuresDescription = "High-pressure jet, active foam & wax", status = "Available"),
-        BayConfig(id = "1_3", bayNumber = "BAY 03", serviceTitle = "Heavy Duty Underbody", priceText = "MWK 15,000", priceValue = 15000, durationText = "30 mins", featuresDescription = "Underbody rinse, engine wash & vacuum", status = "Available"),
-        BayConfig(id = "1_4", bayNumber = "BAY 04", serviceTitle = "Spot-Free Rinse", priceText = "MWK 20,000", priceValue = 20000, durationText = "40 mins", featuresDescription = "Deionized spot-free rinse & air dry", status = "Available")
-    )
-
-    private val defaultGinneryBays = listOf(
-        BayConfig(id = "4_1", bayNumber = "BAY 01", serviceTitle = "Express Wash", priceText = "MWK 6,000", priceValue = 6000, durationText = "15 mins", featuresDescription = "Foam wash & high pressure rinse", status = "Available"),
-        BayConfig(id = "4_2", bayNumber = "BAY 02", serviceTitle = "Foam & Vacuum", priceText = "MWK 12,000", priceValue = 12000, durationText = "30 mins", featuresDescription = "Ceramic foam & interior vacuum", status = "Available")
-    )
-
-    private val initialFacilities = listOf(
-        FacilityData(
-            id = "1",
-            name = "Area 4 Express Station",
-            area = "Lilongwe",
-            address = "Plot 18, Area 4, Lilongwe",
-            city = "Lilongwe",
-            phone = "999123456",
-            bayCount = 4,
-            openingTime = "06:30 AM",
-            closingTime = "08:00 PM",
-            description = "High-Pressure Washing Bays • 06:30 – 20:00 CAT",
-            status = "Approved",
-            ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays,
-            operatingDays = listOf(
-                Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+    fun parseOperatingDaysToCalendarList(daysStr: String): List<Int> {
+        return when {
+            daysStr.contains("Except Saturday", ignoreCase = true) -> listOf(
+                Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY
             )
-        ),
-        FacilityData(
-            id = "2",
-            name = "Area 3 Sparkle Hub",
-            area = "Lilongwe",
-            address = "Off Chilambula Road, Area 3, Lilongwe",
-            city = "Lilongwe",
-            phone = "999654321",
-            bayCount = 3,
-            openingTime = "07:00 AM",
-            closingTime = "07:00 PM",
-            description = "Foam Cannon & Ceramic Rinse Bays",
-            status = "Approved",
-            ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays.take(3),
-            operatingDays = listOf(
-                Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
-            )
-        ),
-        FacilityData(
-            id = "3",
-            name = "City Centre Automated Wash",
-            area = "Lilongwe",
-            address = "Presidential Way, City Centre, Lilongwe",
-            city = "Lilongwe",
-            phone = "999777888",
-            bayCount = 2,
-            openingTime = "06:00 AM",
-            closingTime = "09:00 PM",
-            description = "Touchless Tunnel & Underbody Rinse",
-            status = "Approved",
-            ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays.take(2),
-            operatingDays = listOf(
+            daysStr.contains("Friday", ignoreCase = true) && !daysStr.contains("Saturday", ignoreCase = true) && !daysStr.contains("Sunday", ignoreCase = true) -> listOf(
                 Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY
             )
-        ),
-        FacilityData(
-            id = "4",
-            name = "Ginnery Corner Auto Spa",
-            area = "Blantyre",
-            address = "Masauko Chipembere Hwy, Blantyre",
-            city = "Blantyre",
-            phone = "888654321",
-            bayCount = 2,
-            openingTime = "07:00 AM",
-            closingTime = "07:30 PM",
-            description = "Automated Foam Bays • Blantyre Express",
-            status = "Approved",
-            ownerId = "carwash@gmail.com",
-            bays = defaultGinneryBays,
-            operatingDays = listOf(
+            daysStr.contains("Saturday", ignoreCase = true) && !daysStr.contains("Sunday", ignoreCase = true) -> listOf(
                 Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
             )
-        ),
-        FacilityData(
-            id = "5",
-            name = "Zomba Central Wash",
-            area = "Zomba",
-            address = "M1 Road, Opposite University, Zomba",
-            city = "Zomba",
-            phone = "888111333",
-            bayCount = 2,
-            openingTime = "07:00 AM",
-            closingTime = "06:00 PM",
-            description = "Express Self-Service Bays",
-            status = "Approved",
-            ownerId = "owner@gmail.com",
-            bays = defaultArea4Bays.take(2)
-        ),
-        FacilityData(
-            id = "6",
-            name = "Mzuzu Katoto Express",
-            area = "Mzuzu",
-            address = "Katoto Main Street, Mzuzu",
-            city = "Mzuzu",
-            phone = "888222444",
-            bayCount = 2,
-            openingTime = "07:00 AM",
-            closingTime = "06:00 PM",
-            description = "High Pressure & Vacuum Bays",
-            status = "Approved",
-            ownerId = "carwash@gmail.com",
-            bays = defaultGinneryBays
-        ),
-        FacilityData(
-            id = "7",
-            name = "Kanengo Industrial Wash",
-            area = "Lilongwe",
-            address = "M1 Road, Kanengo Light Industrial Area, Lilongwe",
-            city = "Lilongwe",
-            phone = "999888777",
-            bayCount = 0,
-            openingTime = "08:00 AM",
-            closingTime = "06:00 PM",
-            description = "Incomplete business registration certificate (MBRS) and missing environmental waste clearance.",
-            status = "Rejected",
-            ownerId = "carwash@gmail.com",
-            bays = emptyList()
-        )
-    )
+            daysStr.contains("Sunday", ignoreCase = true) -> listOf(
+                Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+            )
+            else -> listOf(
+                Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+            )
+        }
+    }
 
-    private val facilities = mutableStateListOf<FacilityData>().apply { addAll(initialFacilities) }
+    // Facility repository holds only registered facilities from Firestore
+    private val facilities = mutableStateListOf<FacilityData>()
 
     fun resetToDefaultData() {
         facilities.clear()
-        facilities.addAll(initialFacilities)
         selectedFacilityId = null
     }
 
@@ -183,45 +76,95 @@ object FacilityRepository {
     }
 
     /**
-     * Asynchronously retrieves approved facilities and their washing bays from Firestore `facilities/{facilityId}` and `facilities/{facilityId}/bays`.
+     * Asynchronously retrieves facilities from Firestore (`approvedFacilities`, `rejectedFacilities`, `facilities`).
      */
     suspend fun fetchApprovedFacilitiesFromFirestore(): Result<List<FacilityData>> = withContext(Dispatchers.IO) {
         try {
-            val snapshot = db.collection("facilities")
-                .whereEqualTo("status", "Approved")
+            val fetchedFacilities = mutableListOf<FacilityData>()
+
+            // 1) Query approvedFacilities collection
+            try {
+                val approvedSnapshot = db.collection(APPROVED_FACILITIES_COLLECTION).get().await()
+                for (doc in approvedSnapshot.documents) {
+                    val fac = parseDocToFacility(doc.id, doc.data ?: emptyMap())
+                    if (fac != null) fetchedFacilities.add(fac)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 2) Query rejectedFacilities collection
+            try {
+                val rejectedSnapshot = db.collection(REJECTED_FACILITIES_COLLECTION).get().await()
+                for (doc in rejectedSnapshot.documents) {
+                    val fac = parseDocToFacility(doc.id, doc.data ?: emptyMap())
+                    if (fac != null && fetchedFacilities.none { it.id == fac.id }) {
+                        fetchedFacilities.add(fac)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 3) Query general facilities collection
+            try {
+                val snapshot = db.collection(FACILITIES_COLLECTION).get().await()
+                for (doc in snapshot.documents) {
+                    val fac = parseDocToFacility(doc.id, doc.data ?: emptyMap())
+                    if (fac != null && fetchedFacilities.none { it.id == fac.id }) {
+                        fetchedFacilities.add(fac)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            if (fetchedFacilities.isNotEmpty()) {
+                facilities.clear()
+                facilities.addAll(fetchedFacilities)
+            }
+
+            Result.success(facilities)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun parseDocToFacility(docId: String, data: Map<String, Any?>): FacilityData? {
+        val facilityId = docId
+        val name = data["name"] as? String ?: return null
+        val area = data["area"] as? String ?: data["city"] as? String ?: "Lilongwe"
+        val address = data["address"] as? String ?: ""
+        val city = data["city"] as? String ?: area
+        val phone = data["phone"] as? String ?: ""
+        val openingTime = data["openingTime"] as? String ?: "06:30 AM"
+        val closingTime = data["closingTime"] as? String ?: "08:00 PM"
+        val description = data["description"] as? String ?: ""
+        val status = data["status"] as? String ?: "Approved"
+        val ownerId = data["ownerId"] as? String ?: ""
+        val badgeText = data["badgeText"] as? String ?: "High Pressure Jet"
+        val imageUrl = data["imageUrl"] as? String ?: "https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=800&q=80"
+
+        val rawDays = data["operatingDays"] as? List<*>
+        val operatingDaysStr = data["operatingDaysStr"] as? String ?: data["operatingDays"] as? String
+        val operatingDays = rawDays?.mapNotNull { (it as? Long)?.toInt() }
+            ?: parseOperatingDaysToCalendarList(operatingDaysStr ?: "Monday - Saturday")
+
+        // Fetch bays subcollection & top-level bays collection for this facility
+        val baysList = try {
+            val baysSnapshot = db.collection(FACILITIES_COLLECTION)
+                .document(facilityId)
+                .collection("bays")
                 .get()
                 .await()
 
-            val fetchedFacilities = mutableListOf<FacilityData>()
-
-            for (doc in snapshot.documents) {
-                val facilityId = doc.id
-                val name = doc.getString("name") ?: ""
-                val area = doc.getString("area") ?: doc.getString("city") ?: "Lilongwe"
-                val address = doc.getString("address") ?: ""
-                val city = doc.getString("city") ?: area
-                val phone = doc.getString("phone") ?: ""
-                val openingTime = doc.getString("openingTime") ?: "06:30 AM"
-                val closingTime = doc.getString("closingTime") ?: "08:00 PM"
-                val description = doc.getString("description") ?: ""
-                val status = doc.getString("status") ?: "Approved"
-                val ownerId = doc.getString("ownerId") ?: ""
-                val badgeText = doc.getString("badgeText") ?: "High Pressure Jet"
-                val imageUrl = doc.getString("imageUrl") ?: "https://images.unsplash.com/photo-1520340356584-f9917d1eea6f?auto=format&fit=crop&w=800&q=80"
-
-                val rawDays = doc.get("operatingDays") as? List<*>
-                val operatingDays = rawDays?.mapNotNull { (it as? Long)?.toInt() } ?: listOf(
-                    Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
-                )
-
-                // Fetch bays subcollection for this facility
-                val baysSnapshot = db.collection("facilities")
-                    .document(facilityId)
-                    .collection("bays")
+            if (baysSnapshot.isEmpty) {
+                val topBaysSnapshot = db.collection(BAYS_COLLECTION)
+                    .whereEqualTo("facilityId", facilityId)
                     .get()
                     .await()
 
-                val baysList = baysSnapshot.documents.map { bayDoc ->
+                topBaysSnapshot.documents.map { bayDoc ->
                     BayConfig(
                         id = bayDoc.id,
                         bayNumber = bayDoc.getString("bayNumber") ?: "BAY 01",
@@ -233,39 +176,42 @@ object FacilityRepository {
                         status = bayDoc.getString("status") ?: "Available"
                     )
                 }
-
-                fetchedFacilities.add(
-                    FacilityData(
-                        id = facilityId,
-                        name = name,
-                        area = area,
-                        address = address,
-                        city = city,
-                        phone = phone,
-                        bayCount = baysList.size,
-                        openingTime = openingTime,
-                        closingTime = closingTime,
-                        description = description,
-                        status = status,
-                        bays = baysList,
-                        ownerId = ownerId,
-                        badgeText = badgeText,
-                        imageUrl = imageUrl,
-                        operatingDays = operatingDays
+            } else {
+                baysSnapshot.documents.map { bayDoc ->
+                    BayConfig(
+                        id = bayDoc.id,
+                        bayNumber = bayDoc.getString("bayNumber") ?: "BAY 01",
+                        serviceTitle = bayDoc.getString("serviceTitle") ?: "Foam Wash",
+                        featuresDescription = bayDoc.getString("featuresDescription") ?: "High pressure rinse",
+                        priceText = bayDoc.getString("priceText") ?: "MWK 5,000",
+                        priceValue = bayDoc.getLong("priceValue")?.toInt() ?: 5000,
+                        durationText = bayDoc.getString("durationText") ?: "30 mins",
+                        status = bayDoc.getString("status") ?: "Available"
                     )
-                )
+                }
             }
-
-            if (fetchedFacilities.isNotEmpty()) {
-                facilities.clear()
-                facilities.addAll(fetchedFacilities)
-            }
-
-            Result.success(facilities)
         } catch (e: Exception) {
-            // Return failure on real network/permission exceptions without overwriting local cache
-            Result.failure(e)
+            emptyList()
         }
+
+        return FacilityData(
+            id = facilityId,
+            name = name,
+            area = area,
+            address = address,
+            city = city,
+            phone = phone,
+            bayCount = baysList.size,
+            openingTime = openingTime,
+            closingTime = closingTime,
+            description = description,
+            status = status,
+            bays = baysList,
+            ownerId = ownerId,
+            badgeText = badgeText,
+            imageUrl = imageUrl,
+            operatingDays = operatingDays
+        )
     }
 
     fun getAllFacilities(): List<FacilityData> {
@@ -276,8 +222,13 @@ object FacilityRepository {
         return facilities.filter { it.status == "Approved" }
     }
 
+    /**
+     * Requirement 1: Only return approved facilities that have AT LEAST 1 configured bay.
+     */
     fun getApprovedCarWashFacilities(): List<CarWashFacility> {
-        return getApprovedFacilities().map { it.toCarWashFacility() }
+        return getApprovedFacilities()
+            .filter { it.bays.isNotEmpty() || it.bayCount > 0 }
+            .map { it.toCarWashFacility() }
     }
 
     fun getFacilityById(id: String): FacilityData? {
@@ -342,11 +293,65 @@ object FacilityRepository {
         }
     }
 
+    fun saveApprovedFacilityToFirestore(facility: FacilityData) {
+        saveFacilityData(facility)
+        try {
+            val facilityMap = hashMapOf<String, Any>(
+                "id" to facility.id,
+                "name" to facility.name,
+                "area" to facility.area,
+                "address" to facility.address,
+                "city" to facility.city,
+                "phone" to facility.phone,
+                "bayCount" to facility.bays.size,
+                "openingTime" to facility.openingTime,
+                "closingTime" to facility.closingTime,
+                "description" to facility.description,
+                "status" to "Approved",
+                "ownerId" to facility.ownerId,
+                "badgeText" to facility.badgeText,
+                "imageUrl" to facility.imageUrl,
+                "operatingDays" to facility.operatingDays
+            )
+            db.collection(APPROVED_FACILITIES_COLLECTION).document(facility.id).set(facilityMap)
+            db.collection(FACILITIES_COLLECTION).document(facility.id).set(facilityMap)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveRejectedFacilityToFirestore(facility: FacilityData) {
+        saveFacilityData(facility.copy(status = "Rejected"))
+        try {
+            val facilityMap = hashMapOf<String, Any>(
+                "id" to facility.id,
+                "name" to facility.name,
+                "area" to facility.area,
+                "address" to facility.address,
+                "city" to facility.city,
+                "phone" to facility.phone,
+                "bayCount" to facility.bays.size,
+                "openingTime" to facility.openingTime,
+                "closingTime" to facility.closingTime,
+                "description" to facility.description,
+                "status" to "Rejected",
+                "ownerId" to facility.ownerId,
+                "badgeText" to facility.badgeText,
+                "imageUrl" to facility.imageUrl,
+                "operatingDays" to facility.operatingDays
+            )
+            db.collection(REJECTED_FACILITIES_COLLECTION).document(facility.id).set(facilityMap)
+            db.collection(FACILITIES_COLLECTION).document(facility.id).set(facilityMap)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
+
     fun saveFacility(item: FacilityItemData, ownerEmail: String = "owner@gmail.com") {
         val existingIndex = facilities.indexOfFirst { it.id == item.id }
         if (existingIndex >= 0) {
             val current = facilities[existingIndex]
-            facilities[existingIndex] = current.copy(
+            val updated = current.copy(
                 name = item.name,
                 address = item.address,
                 city = item.city,
@@ -357,6 +362,12 @@ object FacilityRepository {
                 description = item.description,
                 status = item.status
             )
+            facilities[existingIndex] = updated
+            if (updated.status == "Approved") {
+                saveApprovedFacilityToFirestore(updated)
+            } else if (updated.status == "Rejected") {
+                saveRejectedFacilityToFirestore(updated)
+            }
         } else {
             val newFacility = FacilityData(
                 id = item.id,
@@ -375,17 +386,53 @@ object FacilityRepository {
             )
             facilities.add(newFacility)
             selectedFacilityId = newFacility.id
+            if (newFacility.status == "Approved") {
+                saveApprovedFacilityToFirestore(newFacility)
+            } else if (newFacility.status == "Rejected") {
+                saveRejectedFacilityToFirestore(newFacility)
+            }
         }
     }
 
+    /**
+     * Requirement 2: Record bay details in a dedicated Firestore collection "bays".
+     */
     fun updateBaysForFacility(facilityId: String, bays: List<BayConfig>) {
         val existingIndex = facilities.indexOfFirst { it.id == facilityId }
         if (existingIndex >= 0) {
             val current = facilities[existingIndex]
-            facilities[existingIndex] = current.copy(
+            val updatedFacility = current.copy(
                 bays = bays,
                 bayCount = bays.size
             )
+            facilities[existingIndex] = updatedFacility
+
+            // Record bay details in dedicated Firestore collection "bays" and subcollection
+            try {
+                bays.forEach { bay ->
+                    val bayMap = hashMapOf<String, Any>(
+                        "bayId" to bay.id,
+                        "facilityId" to facilityId,
+                        "ownerId" to current.ownerId,
+                        "bayNumber" to bay.bayNumber,
+                        "serviceTitle" to bay.serviceTitle,
+                        "priceText" to bay.priceText,
+                        "priceValue" to bay.priceValue,
+                        "durationText" to bay.durationText,
+                        "featuresDescription" to bay.featuresDescription,
+                        "status" to bay.status,
+                        "timestampMs" to System.currentTimeMillis()
+                    )
+                    db.collection(BAYS_COLLECTION).document(bay.id).set(bayMap)
+                    db.collection(FACILITIES_COLLECTION).document(facilityId).collection("bays").document(bay.id).set(bayMap)
+                }
+
+                if (updatedFacility.status == "Approved") {
+                    saveApprovedFacilityToFirestore(updatedFacility)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }
@@ -434,7 +481,7 @@ fun FacilityData.toCarWashTiers(): List<CarWashTier> {
 fun FacilityData.toFacilityItemData(): FacilityItemData {
     return FacilityItemData(
         id = this.id,
-        name = this.name,
+        name = this.address,
         address = this.address,
         city = this.city,
         phone = this.phone,

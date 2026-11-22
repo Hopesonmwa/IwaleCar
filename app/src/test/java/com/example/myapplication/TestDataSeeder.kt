@@ -138,8 +138,42 @@ object TestDataSeeder {
             bays = emptyList()
         )
 
+        val blantyreSpa = FacilityData(
+            id = "blantyre_spa_1",
+            name = "Blantyre Auto Spa",
+            area = "Blantyre",
+            address = "Masauko Chipembere Hwy, Blantyre",
+            city = "Blantyre",
+            phone = "888654321",
+            bayCount = 2,
+            openingTime = "07:00 AM",
+            closingTime = "07:30 PM",
+            description = "Automated Foam Bays • Blantyre Express",
+            status = "Approved",
+            ownerId = "owner.b@gmail.com",
+            bays = cityShineBays
+        )
+
+        val rejectedWash = FacilityData(
+            id = "7",
+            name = "Kanengo Industrial Wash",
+            area = "Lilongwe",
+            address = "M1 Road, Kanengo Light Industrial Area, Lilongwe",
+            city = "Lilongwe",
+            phone = "999888777",
+            bayCount = 0,
+            openingTime = "08:00 AM",
+            closingTime = "06:00 PM",
+            description = "Incomplete business registration certificate (MBRS) and missing environmental waste clearance.",
+            status = "Rejected",
+            ownerId = "owner.a@gmail.com",
+            bays = emptyList()
+        )
+
         FacilityRepository.saveFacilityData(cityShine)
         FacilityRepository.saveFacilityData(pendingWash)
+        FacilityRepository.saveFacilityData(blantyreSpa)
+        FacilityRepository.saveFacilityData(rejectedWash)
 
         // Seeded Booking Record for Owner Test
         BookingRepository.addBookingRecord(

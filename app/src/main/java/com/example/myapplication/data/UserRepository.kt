@@ -1,6 +1,9 @@
 package com.example.myapplication.data
 
 object UserRepository {
+    const val DEFAULT_ADMIN_EMAIL = "admin@email.com"
+    const val DEFAULT_ADMIN_PASSWORD = "2400@hope24"
+
     private val initialAccounts = listOf(
         UserAccount(
             fullName = "Default User",
@@ -27,20 +30,24 @@ object UserRepository {
             primaryLocation = "Lilongwe"
         ),
         UserAccount(
-            fullName = "Chisomo Banda",
+            fullName = "Admin",
             phoneNumber = "999234567",
             email = "admin@gmail.com",
             password = "1234",
             role = "Administrator",
-            primaryLocation = "Lilongwe HQ"
+            primaryLocation = "Lilongwe HQ",
+            firstName = "Admin",
+            lastName = ""
         ),
         UserAccount(
-            fullName = "Chisomo Banda",
+            fullName = "Admin",
             phoneNumber = "999234567",
-            email = "chisomo.banda@iwalecar.mw",
-            password = "1234",
+            email = DEFAULT_ADMIN_EMAIL,
+            password = DEFAULT_ADMIN_PASSWORD,
             role = "Administrator",
-            primaryLocation = "Lilongwe HQ"
+            primaryLocation = "Lilongwe HQ",
+            firstName = "Admin",
+            lastName = ""
         )
     )
 

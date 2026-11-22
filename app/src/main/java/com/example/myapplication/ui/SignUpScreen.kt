@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -36,8 +39,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -166,6 +167,7 @@ fun SignUpScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .background(Color.White),
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -541,7 +543,7 @@ fun SignUpScreen(
                             ) {
                                 if (email.isEmpty()) {
                                     Text(
-                                        text = "hopesonmwangongonde@gmail.com",
+                                        text = "hopesonmwangonde@gmail.com",
                                         fontSize = 14.sp,
                                         color = Color(0xFF94A3B8)
                                     )
@@ -567,7 +569,7 @@ fun SignUpScreen(
 
                     if (email.isNotEmpty() && !isEmailValid) {
                         Text(
-                            text = "Email address must contain '@gmail.com'",
+                            text = "Email address must contain '@'",
                             fontSize = 11.sp,
                             color = Color(0xFFDC2626)
                         )
@@ -806,7 +808,7 @@ fun SignUpScreen(
                 }
             }
 
-            // Checkbox: Terms & Privacy Policy
+            // Custom Styled Checkbox: Terms & Privacy Policy (White Box, Black Boundary Stroke, Blue Tick Inside, Empty Initially)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -825,19 +827,30 @@ fun SignUpScreen(
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(
-                            checked = isTermsAccepted,
-                            onCheckedChange = {
-                                isTermsAccepted = it
-                                errorMessage = null
-                            },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = Color(0xFF0B132B),
-                                uncheckedColor = Color(0xFF64748B)
-                            )
-                        )
+                        // White box with black boundary stroke and blue tick inside
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.White)
+                                .border(1.5.dp, Color(0xFF0F172A), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    isTermsAccepted = !isTermsAccepted
+                                    errorMessage = null
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isTermsAccepted) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Checked",
+                                    tint = Color(0xFF0284C7),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
 
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {

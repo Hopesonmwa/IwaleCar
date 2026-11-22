@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -129,6 +130,7 @@ fun OwnerFacilitiesScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -241,7 +243,7 @@ fun OwnerFacilitiesScreen(
                         },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF0B132B),
+                            containerColor = Color(0xFF006699),
                             contentColor = Color.White
                         ),
                         modifier = Modifier.height(42.dp)
@@ -419,7 +421,7 @@ fun OwnerFacilitiesScreen(
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF0284C7),
+                                            containerColor = Color(0xFF006699),
                                             contentColor = Color.White
                                         ),
                                         modifier = Modifier.height(36.dp)
@@ -462,9 +464,20 @@ fun RegisterFacilityModal(
     var selectedCity by remember { mutableStateOf(facilityToEdit?.city ?: "Lilongwe") }
     var cityDropdownExpanded by remember { mutableStateOf(false) }
     var operatorPhone by remember { mutableStateOf(facilityToEdit?.phone ?: "") }
-    var bayCount by remember { mutableIntStateOf(facilityToEdit?.bayCount ?: 4) }
-    var openingTime by remember { mutableStateOf(facilityToEdit?.openingTime ?: "06:30 AM") }
-    var closingTime by remember { mutableStateOf(facilityToEdit?.closingTime ?: "08:00 PM") }
+    var bayCount by remember { mutableIntStateOf(facilityToEdit?.bayCount ?: 0) }
+
+    val openingTimeOptions = listOf(
+        "06:00 AM", "06:30 AM", "07:00 AM", "07:30 AM", "08:00 AM", "08:30 AM", "09:00 AM"
+    )
+    val closingTimeOptions = listOf(
+        "05:00 PM", "05:30 PM", "06:00 PM", "06:30 PM", "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM", "09:00 PM", "09:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM", "12:00 AM (Midnight)"
+    )
+
+    var openingTime by remember { mutableStateOf(facilityToEdit?.openingTime?.ifBlank { "06:30 AM" } ?: "06:30 AM") }
+    var closingTime by remember { mutableStateOf(facilityToEdit?.closingTime?.ifBlank { "08:00 PM" } ?: "08:00 PM") }
+    var openingTimeDropdownExpanded by remember { mutableStateOf(false) }
+    var closingTimeDropdownExpanded by remember { mutableStateOf(false) }
+
     var featuresText by remember {
         mutableStateOf(facilityToEdit?.description ?: "High-pressure automated foam bays with dedicated drying slots, waiting lounge, and solar-backed power...")
     }
@@ -736,113 +749,106 @@ fun RegisterFacilityModal(
                     )
                 }
 
-                // Washing Bays Stepper Box
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFF0F5FA))
-                            .padding(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(text = "Washing Bays", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                                Text(text = "Active vehicle cleaning stations", fontSize = 11.sp, color = Color(0xFF64748B))
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFE2E8F0))
-                                        .clickable { if (bayCount > 1) bayCount-- },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(imageVector = Icons.Default.Remove, contentDescription = "Decrease", tint = Color(0xFF0F172A), modifier = Modifier.size(16.dp))
-                                }
-
-                                Text(text = "$bayCount", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF0B132B))
-                                        .clickable { bayCount++ },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Increase", tint = Color.White, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Opening & Closing Times
+                // Opening & Closing Times Dropdown Selectors
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Opening Time
+                        // Opening Time Dropdown Menu
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(text = "Opening Time", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFF0F5FA))
-                                    .padding(horizontal = 10.dp, vertical = 10.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Outlined.AccessTime, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    BasicTextField(
-                                        value = openingTime,
-                                        onValueChange = { openingTime = it },
-                                        singleLine = true,
-                                        textStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                            Text(text = "Opening Time *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFF0F5FA))
+                                        .clickable { openingTimeDropdownExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(imageVector = Icons.Outlined.AccessTime, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(text = openingTime, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
+                                        Icon(imageVector = Icons.Outlined.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = openingTimeDropdownExpanded,
+                                    onDismissRequest = { openingTimeDropdownExpanded = false }
+                                ) {
+                                    openingTimeOptions.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(text = option, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                            onClick = {
+                                                openingTime = option
+                                                openingTimeDropdownExpanded = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        // Closing Time
+                        // Closing Time Dropdown Menu
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(text = "Closing Time", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFF0F5FA))
-                                    .padding(horizontal = 10.dp, vertical = 10.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = Icons.Outlined.Nightlight, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    BasicTextField(
-                                        value = closingTime,
-                                        onValueChange = { closingTime = it },
-                                        singleLine = true,
-                                        textStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                            Text(text = "Closing Time *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFF0F5FA))
+                                        .clickable { closingTimeDropdownExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(imageVector = Icons.Outlined.Nightlight, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(text = closingTime, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
+                                        Icon(imageVector = Icons.Outlined.ArrowDropDown, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = closingTimeDropdownExpanded,
+                                    onDismissRequest = { closingTimeDropdownExpanded = false }
+                                ) {
+                                    closingTimeOptions.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(text = option, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                                            onClick = {
+                                                closingTime = option
+                                                closingTimeDropdownExpanded = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
