@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.FolderShared
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
@@ -35,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -58,6 +61,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,13 +92,35 @@ fun AdminDashboardScreen(
         BookingRepository.refreshBookingsFromFirestore()
     }
 
-    val pendingApplications = OwnerApplicationRepository.pendingCount()
-    val approvedFacilities = FacilityRepository.getApprovedFacilities()
+    val allAdminFacilities = FacilityRepository.getAllFacilities()
+    var selectedAdminFacilityId by remember { mutableStateOf<String?>("ALL") }
+    var isFacilityDropdownExpanded by remember { mutableStateOf(false) }
+
+    val selectedAdminFacility = if (selectedAdminFacilityId == "ALL") null else allAdminFacilities.find { it.id == selectedAdminFacilityId }
+    val selectedAdminFacilityName = selectedAdminFacility?.name ?: "All System Facilities"
+
+    val pendingApplications = if (selectedAdminFacility != null) {
+        if (OwnerApplicationRepository.getApplicationFor(selectedAdminFacility.ownerId)?.status == ApplicationStatus.PENDING) 1 else 0
+    } else {
+        OwnerApplicationRepository.pendingCount()
+    }
+
+    val approvedFacilities = if (selectedAdminFacility != null) {
+        listOfNotNull(if (selectedAdminFacility.status == "Approved") selectedAdminFacility else null)
+    } else {
+        FacilityRepository.getApprovedFacilities()
+    }
     val approvedFacilitiesCount = approvedFacilities.size
+
     val approvedOwnersCount = OwnerApplicationRepository.getByStatus(ApplicationStatus.APPROVED).size.let {
         if (it > 0) it else 4
     }
-    val totalCustomerBookingsCount = BookingRepository.getAllBookings().size
+
+    val totalCustomerBookingsCount = if (selectedAdminFacility != null) {
+        BookingRepository.getBookingsForFacilityAndOwner(selectedAdminFacility.id, selectedAdminFacility.ownerId).size
+    } else {
+        BookingRepository.getAllBookings().size
+    }
 
     Scaffold(
         topBar = {
@@ -210,7 +236,80 @@ fun AdminDashboardScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 4 Key Metrics Cards Grid (Dynamic values based on real Firestore data)
+            // Selected System Facility Dropdown Box (Requirement 3)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFEBF2FF))
+                        .clickable { isFacilityDropdownExpanded = true }
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Storefront,
+                                contentDescription = null,
+                                tint = Color(0xFF0284C7),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "System Facility Scope",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Text(
+                                    text = selectedAdminFacilityName,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowDropDown,
+                            contentDescription = "Select Facility",
+                            tint = Color(0xFF64748B)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = isFacilityDropdownExpanded,
+                        onDismissRequest = { isFacilityDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("All System Facilities", fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                            onClick = {
+                                selectedAdminFacilityId = "ALL"
+                                isFacilityDropdownExpanded = false
+                            }
+                        )
+                        allAdminFacilities.forEach { fac ->
+                            DropdownMenuItem(
+                                text = { Text(fac.name, fontSize = 13.sp) },
+                                onClick = {
+                                    selectedAdminFacilityId = fac.id
+                                    FacilityRepository.setSelectedFacilityId(fac.id)
+                                    isFacilityDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4 Key Metrics Cards Grid (Dynamic values based on selected facility scope)
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -240,11 +339,11 @@ fun AdminDashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Customer Bookings Metric (Total customer bookings from collection)
+                        // Customer Bookings Metric (Total customer bookings for selected facility)
                         MetricCard(
                             title = "Customer Bookings",
                             value = totalCustomerBookingsCount.toString(),
-                            subtext = "Total System Bookings",
+                            subtext = "Facility Bookings",
                             icon = Icons.Outlined.Group,
                             modifier = Modifier.weight(1f)
                         )
@@ -265,7 +364,9 @@ fun AdminDashboardScreen(
             // Pending Owner Applications Section for direct Approval / Disapproval on Admin Dashboard
             item {
                 val scope = rememberCoroutineScope()
-                val pendingApps = OwnerApplicationRepository.getByStatus(ApplicationStatus.PENDING)
+                val pendingApps = OwnerApplicationRepository.getByStatus(ApplicationStatus.PENDING).filter { app ->
+                    selectedAdminFacility == null || app.applicantEmail.equals(selectedAdminFacility.ownerId, ignoreCase = true) || app.businessName.contains(selectedAdminFacility.name, ignoreCase = true)
+                }
                 val adminEmail = UserRepository.getCurrentUser().email.ifBlank { "admin@gmail.com" }
                 var busyEmail by remember { mutableStateOf<String?>(null) }
                 var applicationToReject by remember { mutableStateOf<OwnerApplication?>(null) }
@@ -360,27 +461,36 @@ fun AdminDashboardScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Outlined.Assignment,
                                     contentDescription = null,
                                     tint = Color(0xFF0284C7),
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Car Wash Owner Applications (${pendingApps.size})",
-                                    fontSize = 16.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A)
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             Text(
-                                text = "View All  →",
-                                fontSize = 12.sp,
+                                text = "View All →",
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF0284C7),
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.clickable { onApplicationsClick() }
                             )
                         }
@@ -396,7 +506,7 @@ fun AdminDashboardScreen(
 
                         if (pendingApps.isEmpty()) {
                             Text(
-                                text = "No pending applications at this time.",
+                                text = "No pending applications for this scope.",
                                 fontSize = 13.sp,
                                 color = Color(0xFF64748B)
                             )
@@ -440,14 +550,14 @@ fun AdminDashboardScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(0xFFFEF3C7))
-                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .background(Color(0xFF0B2A5B))
+                                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                                             ) {
                                                 Text(
                                                     text = "PENDING",
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFFD97706)
+                                                    color = Color.White
                                                 )
                                             }
                                         }
@@ -615,86 +725,8 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // Platform Activity Feed
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Shield,
-                                    contentDescription = null,
-                                    tint = Color(0xFF0284C7),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Platform Activity Feed",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A)
-                                )
-                            }
 
-                            Text(
-                                text = "View All",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0284C7),
-                                modifier = Modifier.clickable { onFacilitiesClick() }
-                            )
-                        }
 
-                        // Feed Item 1
-                        ActivityFeedRow(
-                            title = "Silver Lake AutoSpa",
-                            time = "25m ago",
-                            description = "Lilongwe Area 10 submitted by Tiyamike Phiri",
-                            badge1 = "KYC In Review",
-                            badge2 = "Area 10 Node"
-                        )
-
-                        // Feed Item 2
-                        ActivityFeedRow(
-                            title = "Banda Car Wash Enterprise",
-                            time = "2h ago",
-                            description = "Blantyre Central verified KYC documents",
-                            badge1 = "Verified",
-                            badge2 = "3 Bays Equipped"
-                        )
-
-                        // Feed Item 3
-                        ActivityFeedRow(
-                            title = "User Milestone #8,450",
-                            time = "3h ago",
-                            description = "Auto-provisioned via Airtel Money USSD hook",
-                            badge1 = "Airtel Money MW",
-                            badge2 = "Instant Wallet Ready"
-                        )
-
-                        // Feed Item 4
-                        ActivityFeedRow(
-                            title = "Chilambula Speed Wash",
-                            time = "Yesterday",
-                            description = "Approved and actively dispatching digital tokens",
-                            badge1 = "Live Production",
-                            badge2 = "Lilongwe"
-                        )
-                    }
-                }
-            }
         }
     }
 }

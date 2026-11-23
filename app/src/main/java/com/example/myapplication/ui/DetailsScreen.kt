@@ -53,6 +53,7 @@ import com.example.myapplication.data.FacilityRepository
 import com.example.myapplication.data.toCarWashTiers
 import com.example.myapplication.ui.components.CarWashBayPlaceholder
 import com.example.myapplication.ui.components.CarWashIcons
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.ui.theme.PrimaryBlue
 
@@ -95,7 +96,10 @@ fun DetailsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -104,14 +108,9 @@ fun DetailsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                    Text(
-                        text = "More Details",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
+                    IwaleBrandTitle(title = "More Details")
                 }
 
                 Box(

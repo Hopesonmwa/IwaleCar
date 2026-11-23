@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.myapplication.R
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -65,6 +69,7 @@ import com.example.myapplication.ui.components.BottomNavigationBar
 import com.example.myapplication.ui.components.CarWashBayPlaceholder
 import com.example.myapplication.ui.components.CarWashIcons
 import com.example.myapplication.ui.components.NavItem
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.delay
@@ -104,6 +109,9 @@ fun PaymentScreen(
     var isProcessingPayment by remember { mutableStateOf(false) }
     var isPaymentSuccess by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    // A failure found before the provider call (offline, bad number...) is held here so the
+    // "Processing Payment..." loader shows first, exactly like a successful payment.
+    var pendingFailure by remember { mutableStateOf<String?>(null) }
     var bookingReferenceText by remember { mutableStateOf("") }
 
     val currentUser = UserRepository.getCurrentUser()
@@ -111,17 +119,23 @@ fun PaymentScreen(
     val durationMins = maxOf(1, ((endTimeMs - startTimeMs) / (60 * 1000L)).toInt())
     val targetBay = facility?.bays?.find { it.id == bayId } ?: facility?.bays?.firstOrNull()
 
+    fun failAfterLoading(message: String) {
+        pendingFailure = message
+        isProcessingPayment = true
+    }
+
     fun validateAndProcessPayment() {
         errorMessage = null
+        pendingFailure = null
 
         // 1. Internet connection requirement check
         if (!NetworkUtils.isNetworkAvailable(context)) {
-            errorMessage = "No internet connection. Payment completion requires an active internet connection."
+            failAfterLoading("No internet connection. Payment completion requires an active internet connection.")
             return
         }
 
         if (facility == null || facility.bays.isEmpty() || targetBay == null) {
-            errorMessage = "Selected washing bay is unavailable."
+            failAfterLoading("Selected washing bay is unavailable.")
             return
         }
 
@@ -129,13 +143,13 @@ fun PaymentScreen(
         val activePhone = if (selectedProvider == MobilePaymentProvider.AIRTEL_MONEY) airtelPhoneNumber else tnmPhoneNumber
         val cleanPhone = activePhone.replace(" ", "").removePrefix("+265")
         if (cleanPhone.length != 9 || !cleanPhone.all { it.isDigit() }) {
-            errorMessage = "Please enter a valid 9-digit Malawi phone number."
+            failAfterLoading("Please enter a valid 9-digit Malawi phone number.")
             return
         }
 
         // Check Overlapping Reservation
         if (BookingRepository.hasOverlappingReservation(facility.id, targetBay.id, startTimeMs, endTimeMs)) {
-            errorMessage = "This bay is already reserved for the selected time slot."
+            failAfterLoading("This bay is already reserved for the selected time slot.")
             return
         }
 
@@ -264,6 +278,14 @@ fun PaymentScreen(
     if (isProcessingPayment) {
         LaunchedEffect(Unit) {
             delay(2200)
+
+            val preFailure = pendingFailure
+            if (preFailure != null) {
+                pendingFailure = null
+                isProcessingPayment = false
+                errorMessage = preFailure
+                return@LaunchedEffect
+            }
 
             simulatedPaymentAttemptCounter++
             val currentAttemptNumber = simulatedPaymentAttemptCounter
@@ -404,7 +426,10 @@ fun PaymentScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -413,14 +438,9 @@ fun PaymentScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                    Text(
-                        text = "Payment Page",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
+                    IwaleBrandTitle(title = "Payment Page")
                 }
 
                 Box(
@@ -813,46 +833,27 @@ fun PaymentScreen(
 
 @Composable
 fun AirtelLogo() {
-    Box(
+    Image(
+        painter = painterResource(id = R.drawable.airtel_logo),
+        contentDescription = "Airtel Money",
+        contentScale = ContentScale.Fit,
         modifier = Modifier
-            .size(42.dp)
-            .clip(CircleShape)
-            .background(Color.White),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE11D48)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "airtel",
-                color = Color.White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-        }
-    }
+            .size(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+    )
 }
 
 @Composable
 fun MpambaLogo() {
-    Box(
+    Image(
+        painter = painterResource(id = R.drawable.tnm_logo),
+        contentDescription = "TNM Mpamba",
+        contentScale = ContentScale.Crop,
         modifier = Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF22C55E)),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.AccountBalanceWallet,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(20.dp)
-        )
-    }
+            .size(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+    )
 }
 
 @Preview(showBackground = true, showSystemUi = true)

@@ -91,21 +91,18 @@ fun OwnerBookingsScreen(
 
     val upcomingCount = allFacilityBookings.count { it.status.equals("Upcoming", ignoreCase = true) }
     val inProgressCount = allFacilityBookings.count { it.status.equals("In Progress", ignoreCase = true) || it.status.equals("Paused", ignoreCase = true) }
-    val completedCount = allFacilityBookings.count { it.status.equals("Completed", ignoreCase = true) }
 
     var selectedFilterTab by remember { mutableStateOf("All") }
 
     val filterOptions = listOf(
         "All (${allFacilityBookings.size})",
         "Upcoming ($upcomingCount)",
-        "In Progress ($inProgressCount)",
-        "Completed ($completedCount)"
+        "In Progress ($inProgressCount)"
     )
 
     val filteredBookingRecords = when {
         selectedFilterTab.startsWith("Upcoming") -> allFacilityBookings.filter { it.status.equals("Upcoming", ignoreCase = true) }
         selectedFilterTab.startsWith("In Progress") -> allFacilityBookings.filter { it.status.equals("In Progress", ignoreCase = true) || it.status.equals("Paused", ignoreCase = true) }
-        selectedFilterTab.startsWith("Completed") -> allFacilityBookings.filter { it.status.equals("Completed", ignoreCase = true) }
         else -> allFacilityBookings
     }
 

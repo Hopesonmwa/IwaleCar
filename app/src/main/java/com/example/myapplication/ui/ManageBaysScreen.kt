@@ -70,6 +70,7 @@ import com.example.myapplication.data.FacilityRepository
 import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.components.OwnerBottomNavigationBar
 import com.example.myapplication.ui.components.OwnerNavItem
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import java.text.NumberFormat
 
@@ -217,7 +218,10 @@ fun ManageBaysScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -226,14 +230,9 @@ fun ManageBaysScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                    Text(
-                        text = "Manage Bays & Pricing",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
+                    IwaleBrandTitle(title = "Manage Bays & Pricing", titleSize = 16.sp)
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -584,7 +583,7 @@ fun ManageBaysScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFFE2EDFF))
+                                            .background(Color(0xFF0B132B))
                                             .clickable { editingBay = bay }
                                             .padding(horizontal = 14.dp, vertical = 6.dp)
                                     ) {
@@ -592,7 +591,7 @@ fun ManageBaysScreen(
                                             text = "Edit",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0284C7)
+                                            color = Color.White
                                         )
                                     }
                                 }

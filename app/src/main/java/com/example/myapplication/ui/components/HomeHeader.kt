@@ -31,12 +31,7 @@ fun HomeHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "Home",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF0F172A)
-        )
+        IwaleBrandTitle(title = "Home", titleSize = 22.sp)
 
         Box(
             modifier = Modifier

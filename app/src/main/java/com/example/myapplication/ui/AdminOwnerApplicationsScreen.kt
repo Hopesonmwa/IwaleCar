@@ -54,6 +54,7 @@ import com.example.myapplication.data.OwnerApplicationRepository
 import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.components.AdminBottomNavigationBar
 import com.example.myapplication.ui.components.AdminNavItem
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -124,10 +125,7 @@ fun AdminOwnerApplicationsScreen(
                 IconButton(onClick = onBackClick, modifier = Modifier.testTag("applications_back")) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF0F172A))
                 }
-                Column {
-                    Text("Owner Applications", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                    Text("Review car wash owner requests", fontSize = 12.sp, color = Color(0xFF64748B))
-                }
+                IwaleBrandTitle(title = "Owner Applications")
             }
         },
         bottomBar = {

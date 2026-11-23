@@ -70,6 +70,7 @@ import com.example.myapplication.data.CarWashTier
 import com.example.myapplication.data.FacilityRepository
 import com.example.myapplication.data.TimeSlotInfo
 import com.example.myapplication.ui.components.CarWashIcons
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.ui.theme.PrimaryBlue
 import kotlinx.coroutines.delay
@@ -238,7 +239,10 @@ fun BookingScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -247,14 +251,9 @@ fun BookingScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                    Text(
-                        text = "Select Date & Time",
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
+                    IwaleBrandTitle(title = "Select Date & Time")
                 }
 
                 Box(
@@ -303,9 +302,10 @@ fun BookingScreen(
 
                             Text(
                                 text = tier.formattedPrice,
-                                fontSize = 24.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A)
+                                color = Color(0xFF0F172A),
+                                maxLines = 1
                             )
                         }
 
@@ -319,14 +319,17 @@ fun BookingScreen(
                                 disabledContainerColor = Color(0xFFCBD5E1),
                                 disabledContentColor = Color(0xFF64748B)
                             ),
+                            contentPadding = PaddingValues(horizontal = 14.dp),
                             modifier = Modifier
                                 .height(48.dp)
-                                .padding(start = 16.dp)
+                                .padding(start = 12.dp)
                         ) {
                             Text(
-                                text = "Proceed to Payment  →",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                text = "Proceed to Payment →",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

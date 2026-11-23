@@ -1,6 +1,7 @@
 package com.example.myapplication.data
 
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import com.example.myapplication.ui.BayConfig
 import com.example.myapplication.ui.FacilityItemData
 import com.google.firebase.firestore.FirebaseFirestore
@@ -66,13 +67,15 @@ object FacilityRepository {
 
     fun resetToDefaultData() {
         facilities.clear()
-        selectedFacilityId = null
+        _selectedFacilityId.value = null
     }
 
-    private var selectedFacilityId: String? = null
+    private val _selectedFacilityId = mutableStateOf<String?>(null)
+
+    val selectedFacilityId: String? get() = _selectedFacilityId.value
 
     fun setSelectedFacilityId(id: String) {
-        selectedFacilityId = id
+        _selectedFacilityId.value = id
     }
 
     /**
@@ -274,7 +277,7 @@ object FacilityRepository {
 
         val selected = match ?: ownerFacilities.firstOrNull()
         if (selected != null) {
-            selectedFacilityId = selected.id
+            setSelectedFacilityId(selected.id)
         }
         return selected
     }
@@ -385,7 +388,7 @@ object FacilityRepository {
                 ownerId = ownerEmail
             )
             facilities.add(newFacility)
-            selectedFacilityId = newFacility.id
+            setSelectedFacilityId(newFacility.id)
             if (newFacility.status == "Approved") {
                 saveApprovedFacilityToFirestore(newFacility)
             } else if (newFacility.status == "Rejected") {
@@ -430,7 +433,7 @@ object FacilityRepository {
                 if (updatedFacility.status == "Approved") {
                     saveApprovedFacilityToFirestore(updatedFacility)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -481,7 +484,7 @@ fun FacilityData.toCarWashTiers(): List<CarWashTier> {
 fun FacilityData.toFacilityItemData(): FacilityItemData {
     return FacilityItemData(
         id = this.id,
-        name = this.address,
+        name = this.name,
         address = this.address,
         city = this.city,
         phone = this.phone,

@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -330,10 +331,17 @@ fun OwnerDashboardScreen(
             // Today's Metrics Overview Card
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 14.dp,
+                            shape = RoundedCornerShape(16.dp),
+                            ambientColor = Color(0x66000000),
+                            spotColor = Color(0x80000000)
+                        ),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F5FA)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(18.dp),

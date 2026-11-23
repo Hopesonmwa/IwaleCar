@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +52,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.myapplication.data.ApplicationStatus
 import com.example.myapplication.data.OwnerApplicationRepository
 import com.example.myapplication.data.UserRepository
+import com.example.myapplication.ui.components.IwaleBrandTitle
 import com.example.myapplication.ui.theme.PrimaryBlue
 import com.example.myapplication.ui.theme.PrimaryBlueLight
 
@@ -195,7 +197,20 @@ fun OwnerOnboardingScreen(
         }
     }
 
-    Scaffold(containerColor = Color.White) { innerPadding ->
+    Scaffold(
+        containerColor = Color.White,
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IwaleBrandTitle(title = "Owner Application")
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()

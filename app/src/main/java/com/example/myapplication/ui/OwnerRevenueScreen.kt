@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +56,7 @@ import com.example.myapplication.data.UserRepository
 import com.example.myapplication.ui.components.OwnerBottomNavigationBar
 import com.example.myapplication.ui.components.OwnerNavItem
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import java.text.NumberFormat
 
 private data class RevenueSummaryData(
     val title: String,
@@ -94,179 +96,80 @@ private fun getRevenueDataForFacilityAndTimeRange(
     timeRange: String,
     ownerEmail: String
 ): FacilityRevenueData {
-    val bookings = BookingRepository.getBookingsForFacilityAndOwner(facilityId, ownerEmail)
-    val hasBookings = bookings.isNotEmpty()
+    val allFacilityBookings = BookingRepository.getBookingsForFacilityAndOwner(facilityId, ownerEmail)
+    val paidBookings = allFacilityBookings.filter {
+        it.paymentStatus == "SUCCESSFUL" || it.status.equals("Completed", ignoreCase = true) || it.status.equals("In Progress", ignoreCase = true)
+    }
 
-    val isGinnery = facilityName.contains("Ginnery", ignoreCase = true) || facilityId == "4"
+    val totalPaidAmount = paidBookings.sumOf { it.amountValue }
+    val totalSessionsCount = allFacilityBookings.size
+    val successfulSessionsCount = paidBookings.size
+    val failedSessionsCount = allFacilityBookings.count { it.paymentStatus == "FAILED" || it.status.equals("Cancelled", ignoreCase = true) }
 
-    return when (timeRange) {
-        "Today" -> if (hasBookings) {
-            val todayTotal = BookingRepository.getTodayRevenueValue(facilityId, ownerEmail)
-            val todayBookings = BookingRepository.getTodayBookingsCount(facilityId, ownerEmail)
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "Today's Total",
-                    amount = "MK ${if (todayTotal > 0) todayTotal else 0}",
-                    subtitle = "$todayBookings car wash sessions",
-                    icon = Icons.Outlined.CalendarToday
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Today's Hourly Inflow (MWK)",
-                    totalText = "Total: MK ${if (todayTotal > 0) todayTotal else 0}",
-                    bars = if (isGinnery) {
-                        listOf(
-                            RevenueBarItem("16:00 – 18:00 (Current)", "MK 20,000", 1.0f, isCurrent = true),
-                            RevenueBarItem("14:00 – 16:00", "MK 17,000", 0.85f),
-                            RevenueBarItem("12:00 – 14:00", "MK 13,000", 0.65f),
-                            RevenueBarItem("10:00 – 12:00", "MK 8,000", 0.40f),
-                            RevenueBarItem("08:00 – 10:00", "MK 4,000", 0.20f)
-                        )
-                    } else {
-                        listOf(
-                            RevenueBarItem("16:00 – 18:00 (Current)", "MK 28,000", 1.0f, isCurrent = true),
-                            RevenueBarItem("14:00 – 16:00", "MK 22,000", 0.79f),
-                            RevenueBarItem("12:00 – 14:00", "MK 18,000", 0.64f),
-                            RevenueBarItem("10:00 – 12:00", "MK 12,000", 0.43f),
-                            RevenueBarItem("08:00 – 10:00", "MK 5,000", 0.18f)
-                        )
-                    }
-                ),
-                sessions = VerifiedSessionsData(
-                    total = todayBookings,
-                    successful = todayBookings,
-                    failed = 0
-                )
-            )
-        } else {
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "Today's Total",
-                    amount = "MK 0",
-                    subtitle = "0 car wash sessions",
-                    icon = Icons.Outlined.CalendarToday
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Today's Hourly Inflow (MWK)",
-                    totalText = "Total: MK 0",
-                    bars = listOf(
-                        RevenueBarItem("16:00 – 18:00", "MK 0", 0.0f),
-                        RevenueBarItem("14:00 – 16:00", "MK 0", 0.0f),
-                        RevenueBarItem("12:00 – 14:00", "MK 0", 0.0f),
-                        RevenueBarItem("10:00 – 12:00", "MK 0", 0.0f),
-                        RevenueBarItem("08:00 – 10:00", "MK 0", 0.0f)
-                    )
-                ),
-                sessions = VerifiedSessionsData(total = 0, successful = 0, failed = 0)
+    val formattedTotalAmount = "MK " + NumberFormat.getNumberInstance().format(totalPaidAmount)
+
+    val bars: List<RevenueBarItem> = when (timeRange) {
+        "Today" -> {
+            val slot1 = paidBookings.filter { it.timeSlotText.contains("08:") || it.timeSlotText.contains("09:") }.sumOf { it.amountValue }
+            val slot2 = paidBookings.filter { it.timeSlotText.contains("10:") || it.timeSlotText.contains("11:") }.sumOf { it.amountValue }
+            val slot3 = paidBookings.filter { it.timeSlotText.contains("12:") || it.timeSlotText.contains("13:") }.sumOf { it.amountValue }
+            val slot4 = paidBookings.filter { it.timeSlotText.contains("14:") || it.timeSlotText.contains("15:") }.sumOf { it.amountValue }
+            val slot5 = paidBookings.filter { it.timeSlotText.contains("16:") || it.timeSlotText.contains("17:") || it.timeSlotText.contains("18:") }.sumOf { it.amountValue }
+
+            val maxSlot = maxOf(slot1, slot2, slot3, slot4, slot5, 1)
+            listOf(
+                RevenueBarItem("16:00 – 18:00 (Current)", "MK " + NumberFormat.getNumberInstance().format(slot5), (slot5.toFloat() / maxSlot).coerceIn(0f, 1f), isCurrent = true),
+                RevenueBarItem("14:00 – 16:00", "MK " + NumberFormat.getNumberInstance().format(slot4), (slot4.toFloat() / maxSlot).coerceIn(0f, 1f)),
+                RevenueBarItem("12:00 – 14:00", "MK " + NumberFormat.getNumberInstance().format(slot3), (slot3.toFloat() / maxSlot).coerceIn(0f, 1f)),
+                RevenueBarItem("10:00 – 12:00", "MK " + NumberFormat.getNumberInstance().format(slot2), (slot2.toFloat() / maxSlot).coerceIn(0f, 1f)),
+                RevenueBarItem("08:00 – 10:00", "MK " + NumberFormat.getNumberInstance().format(slot1), (slot1.toFloat() / maxSlot).coerceIn(0f, 1f))
             )
         }
-
-        "This Week" -> if (hasBookings) {
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "This Week",
-                    amount = if (isGinnery) "MK 415,000" else "MK 542,000",
-                    subtitle = if (isGinnery) "88 car wash sessions" else "112 car wash sessions",
-                    icon = Icons.Outlined.BarChart
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Daily Inflow (MWK)",
-                    totalText = if (isGinnery) "Total: MK 415,000" else "Total: MK 542,000",
-                    bars = if (isGinnery) {
-                        listOf(
-                            RevenueBarItem("Today (Fri)", "MK 62,000", 0.78f, isCurrent = true),
-                            RevenueBarItem("Thu", "MK 80,000", 1.0f),
-                            RevenueBarItem("Wed", "MK 72,000", 0.90f),
-                            RevenueBarItem("Tue", "MK 65,000", 0.81f),
-                            RevenueBarItem("Mon", "MK 56,000", 0.70f),
-                            RevenueBarItem("Sat & Sun (Est.)", "MK 80,000", 1.0f)
-                        )
-                    } else {
-                        listOf(
-                            RevenueBarItem("Today (Fri)", "MK 85,000", 0.77f, isCurrent = true),
-                            RevenueBarItem("Thu", "MK 110,000", 1.0f),
-                            RevenueBarItem("Wed", "MK 95,000", 0.86f),
-                            RevenueBarItem("Tue", "MK 82,000", 0.75f),
-                            RevenueBarItem("Mon", "MK 70,000", 0.64f),
-                            RevenueBarItem("Sat & Sun (Est.)", "MK 100,000", 0.91f)
-                        )
-                    }
-                ),
-                sessions = if (isGinnery) VerifiedSessionsData(total = 88, successful = 85, failed = 3) else VerifiedSessionsData(total = 112, successful = 110, failed = 2)
-            )
-        } else {
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "This Week",
-                    amount = "MK 0",
-                    subtitle = "0 car wash sessions",
-                    icon = Icons.Outlined.BarChart
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Daily Inflow (MWK)",
-                    totalText = "Total: MK 0",
-                    bars = listOf(
-                        RevenueBarItem("Today (Fri)", "MK 0", 0.0f),
-                        RevenueBarItem("Thu", "MK 0", 0.0f),
-                        RevenueBarItem("Wed", "MK 0", 0.0f),
-                        RevenueBarItem("Tue", "MK 0", 0.0f),
-                        RevenueBarItem("Mon", "MK 0", 0.0f)
-                    )
-                ),
-                sessions = VerifiedSessionsData(total = 0, successful = 0, failed = 0)
-            )
+        "This Week" -> {
+            val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+            val dayAmounts = days.associateWith { dayName ->
+                paidBookings.filter { it.timeSlotText.contains(dayName, ignoreCase = true) || it.slotDetailText.contains(dayName, ignoreCase = true) }.sumOf { it.amountValue }
+            }
+            val maxDay = dayAmounts.values.maxOrNull()?.coerceAtLeast(1) ?: 1
+            days.map { day ->
+                val amt = dayAmounts[day] ?: 0
+                RevenueBarItem(day, "MK " + NumberFormat.getNumberInstance().format(amt), (amt.toFloat() / maxDay).coerceIn(0f, 1f), isCurrent = (day == "Fri"))
+            }
         }
+        else -> {
+            val week1 = paidBookings.take(maxOf(1, paidBookings.size / 4)).sumOf { it.amountValue }
+            val week2 = paidBookings.drop(paidBookings.size / 4).take(maxOf(1, paidBookings.size / 4)).sumOf { it.amountValue }
+            val week3 = paidBookings.drop(paidBookings.size / 2).take(maxOf(1, paidBookings.size / 4)).sumOf { it.amountValue }
+            val week4 = paidBookings.drop(paidBookings.size * 3 / 4).sumOf { it.amountValue }
 
-        else -> if (hasBookings) {
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "This Month",
-                    amount = if (isGinnery) "MK 1,820,000" else "MK 2,485,000",
-                    subtitle = if (isGinnery) "410 wash sessions" else "582 wash sessions",
-                    icon = Icons.Outlined.CalendarToday
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Monthly Inflow (MWK)",
-                    totalText = if (isGinnery) "Total: MK 1.82M" else "Total: MK 2.485M",
-                    bars = if (isGinnery) {
-                        listOf(
-                            RevenueBarItem("Week 4 (Current)", "MK 510,000", 1.0f, isCurrent = true),
-                            RevenueBarItem("Week 3", "MK 440,000", 0.86f),
-                            RevenueBarItem("Week 2", "MK 450,000", 0.88f),
-                            RevenueBarItem("Week 1", "MK 420,000", 0.82f)
-                        )
-                    } else {
-                        listOf(
-                            RevenueBarItem("Week 4 (Current)", "MK 775,000", 1.0f, isCurrent = true),
-                            RevenueBarItem("Week 3", "MK 580,000", 0.75f),
-                            RevenueBarItem("Week 2", "MK 610,000", 0.79f),
-                            RevenueBarItem("Week 1", "MK 520,000", 0.67f)
-                        )
-                    }
-                ),
-                sessions = if (isGinnery) VerifiedSessionsData(total = 410, successful = 402, failed = 8) else VerifiedSessionsData(total = 582, successful = 574, failed = 8)
-            )
-        } else {
-            FacilityRevenueData(
-                summary = RevenueSummaryData(
-                    title = "This Month",
-                    amount = "MK 0",
-                    subtitle = "0 wash sessions",
-                    icon = Icons.Outlined.CalendarToday
-                ),
-                trend = RevenueTrendData(
-                    subtitle = "$facilityName — Monthly Inflow (MWK)",
-                    totalText = "Total: MK 0",
-                    bars = listOf(
-                        RevenueBarItem("Week 4", "MK 0", 0.0f),
-                        RevenueBarItem("Week 3", "MK 0", 0.0f),
-                        RevenueBarItem("Week 2", "MK 0", 0.0f),
-                        RevenueBarItem("Week 1", "MK 0", 0.0f)
-                    )
-                ),
-                sessions = VerifiedSessionsData(total = 0, successful = 0, failed = 0)
+            val maxWeek = maxOf(week1, week2, week3, week4, 1)
+            listOf(
+                RevenueBarItem("Week 4 (Current)", "MK " + NumberFormat.getNumberInstance().format(week4), (week4.toFloat() / maxWeek).coerceIn(0f, 1f), isCurrent = true),
+                RevenueBarItem("Week 3", "MK " + NumberFormat.getNumberInstance().format(week3), (week3.toFloat() / maxWeek).coerceIn(0f, 1f)),
+                RevenueBarItem("Week 2", "MK " + NumberFormat.getNumberInstance().format(week2), (week2.toFloat() / maxWeek).coerceIn(0f, 1f)),
+                RevenueBarItem("Week 1", "MK " + NumberFormat.getNumberInstance().format(week1), (week1.toFloat() / maxWeek).coerceIn(0f, 1f))
             )
         }
     }
+
+    return FacilityRevenueData(
+        summary = RevenueSummaryData(
+            title = "$timeRange Revenue Total",
+            amount = formattedTotalAmount,
+            subtitle = "$successfulSessionsCount paid car wash sessions so far",
+            icon = Icons.Outlined.BarChart
+        ),
+        trend = RevenueTrendData(
+            subtitle = "$facilityName — $timeRange Real Paid Inflow",
+            totalText = "Total: $formattedTotalAmount",
+            bars = bars
+        ),
+        sessions = VerifiedSessionsData(
+            total = totalSessionsCount,
+            successful = successfulSessionsCount,
+            failed = failedSessionsCount
+        )
+    )
 }
 
 @Composable
@@ -306,6 +209,7 @@ fun OwnerRevenueScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF8FAFC))
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
